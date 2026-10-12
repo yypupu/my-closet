@@ -1714,7 +1714,12 @@ document.addEventListener("change",e=>{if(e.target.dataset?.restore){const f=e.t
 document.addEventListener("change",async e=>{const k=e.target.dataset?.bodyphoto;if(!k||!e.target.files?.[0])return;const [blob]=await filesToBlobs([e.target.files[0]]);e.target.value="";if(!blob)return;
   const p=prof();const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
 boot();
-if("serviceWorker" in navigator&&/github\.io$/.test(location.hostname)){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+if("serviceWorker" in navigator&&/github\.io$/.test(location.hostname)){
+  let reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",()=>{if(reloaded||sheets.length)return;reloaded=true;location.reload()});
+  window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(reg=>{
+    const check=()=>{try{reg.update()}catch(e){}};check();
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")check()});
+    setInterval(check,30*60*1000)}).catch(()=>{})})}
 </script>
 
 </body>

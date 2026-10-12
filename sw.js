@@ -1,6 +1,6 @@
 /* Myクローゼット：オフラインでも開けるようにするための最小限のキャッシュ。
    アプリ本体は「通信できれば最新、できなければ保存済み」。個人データは扱いません。 */
-const CACHE = "my-closet-v8";
+const CACHE = "my-closet-v9";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./privacy.html"];
 const CDN = /^https:\/\/(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 
@@ -15,7 +15,7 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin === location.origin) {
-    e.respondWith(fetch(req).then(res => {
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req).then(r => r || caches.match("./index.html"))));
