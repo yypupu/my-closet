@@ -140,15 +140,8 @@ button{cursor:pointer;background:none;border:0;padding:0}
   --bw:3px; --r:14px; --r-sm:14px; --btn-r:999px;
   --ja-size:36px; --ja-ls:0; --ja-color:var(--ink);
   --tabbg:#FFFFFF; --tabfg:#8A8A8A; --tabon:#161616; --tabicon:#161616; --fab-bg:#161616; --fab-fg:#FFE14D; --chip-on-bg:#161616; --chip-on-fg:#FFE14D;
-  --card-shadow:none; --card-border:3px solid #161616; --btn-shadow:3px 3px 0 #FF7BAC; --pop-shadow:4px 4px 0 #161616}
-@media (prefers-color-scheme: dark){:root[data-style="pop"]:not([data-theme="light"]){
-  --bg:#1A1B3D; --surface:#2A2C5C; --ink:#F6F1E6; --muted:#C3C1E0; --line:#F6F1E6; --hair:rgba(246,241,230,.2);
-  --accent:#F5FF5C; --accent-ink:#1A1B3D; --accent-soft:#2E3070;
-  --ok:#5CF2D6; --ok-soft:#5CF2D6; --warn:#1A1B3D; --warn-soft:#FFB36B; --danger:#FF8FA3; --danger-soft:#4A2440; --shade:rgba(0,0,0,.6); --photo:#2A2C5C;
-  --c1:#5CF2D6; --c2:#F5FF5C; --c3:#FF6FB5; --c4:#F6F1E6; --card-ink:#1A1B3D; --sticker:#FF6FB5; --info-bg:#5CF2D6; --info-fg:#1A1B3D;
-  --tabbg:#2A2C5C; --tabfg:#9A9BC4; --tabon:#F5FF5C; --tabicon:#F5FF5C; --fab-bg:#F5FF5C; --fab-fg:#1A1B3D; --chip-on-bg:#F5FF5C; --chip-on-fg:#1A1B3D;
-  --card-border:3px solid #F6F1E6; --btn-shadow:3px 3px 0 #FF6FB5; --pop-shadow:4px 4px 0 #F6F1E6; color-scheme:dark}}
-:root[data-style="pop"][data-theme="dark"]{
+  --card-shadow:none; --card-border:3px solid #161616; --btn-shadow:3px 3px 0 #FF7BAC; --pop-shadow:4px 4px 0 #161616; color-scheme:light}
+:root[data-style="pop"][data-variant="night"]{
   --bg:#1A1B3D; --surface:#2A2C5C; --ink:#F6F1E6; --muted:#C3C1E0; --line:#F6F1E6; --hair:rgba(246,241,230,.2);
   --accent:#F5FF5C; --accent-ink:#1A1B3D; --accent-soft:#2E3070;
   --ok:#5CF2D6; --ok-soft:#5CF2D6; --warn:#1A1B3D; --warn-soft:#FFB36B; --danger:#FF8FA3; --danger-soft:#4A2440; --shade:rgba(0,0,0,.6); --photo:#2A2C5C;
@@ -445,16 +438,18 @@ const CONFIG = {
 
 /* ===== デザインパターン ===== */
 const STYLES=[
-  {k:"pop",n:"ポップ",d:"黄色と黒フチのシール風。夜はネイビーに",bg:"#FFE14D",ink:"#161616",ac:"#FF7BAC",ph:"#4D7CFF",f:'"Mochiy Pop One",sans-serif',t:"Closet"},
+  {k:"pop",n:"ポップ",d:"黄色と黒フチのシール風",bg:"#FFE14D",ink:"#161616",ac:"#FF7BAC",ph:"#4D7CFF",f:'"Mochiy Pop One",sans-serif',t:"Closet"},
+  {k:"night",n:"ナイト",d:"濃紺にネオンの差し色。夜も目にやさしい",bg:"#1A1B3D",ink:"#F6F1E6",ac:"#F5FF5C",ph:"#FF6FB5",f:'"Mochiy Pop One",sans-serif',t:"Closet"},
   {k:"atelier",n:"アトリエ",d:"深緑と明朝体。上品で静か",bg:"#F3F4F2",ink:"#17191A",ac:"#1F4E4A",ph:"#E9EBE8",f:'"Zen Old Mincho",serif',t:"Closet"},
   {k:"mode",n:"モード",d:"白と黒だけ。ファッション誌のように",bg:"#FFFFFF",ink:"#0B0B0B",ac:"#0B0B0B",ph:"#F1F0EE",f:'"Bodoni Moda",serif',t:"<em>Closet</em>"},
   {k:"blush",n:"ブラッシュ",d:"くすみピンクと丸ゴシック。やわらかく",bg:"#F8F0EC",ink:"#3B2F2F",ac:"#B85C70",ph:"#F1E4DF",f:'"Cormorant Garamond",serif',t:"<em>Closet</em>"},
   {k:"street",n:"ストリート",d:"太字と黒枠に、タンジェリンの差し色",bg:"#ECEBE6",ink:"#121212",ac:"#F28C28",ph:"#DCDBD5",f:'Anton,Impact,sans-serif',t:"CLOSET"}
 ];
-function applyStyle(k){if(!STYLES.some(s=>s.k===k))k="pop";document.documentElement.dataset.style=k;try{localStorage.setItem("mc-style",k)}catch(e){}}
+let curStyle="pop";
+function applyStyle(k){if(!STYLES.some(s=>s.k===k))k="pop";curStyle=k;document.documentElement.dataset.style=k==="night"?"pop":k;if(k==="night")document.documentElement.dataset.variant="night";else delete document.documentElement.dataset.variant;try{localStorage.setItem("mc-style",k)}catch(e){}}
 (function(){let k="pop";try{if(localStorage.getItem("mc-style-v")==="2")k=localStorage.getItem("mc-style")||"pop";else localStorage.setItem("mc-style-v","2")}catch(e){}applyStyle(k)})();
 const hd=(en,ja,pj)=>`<span class="en">${en}</span><span class="ja">${ja}</span><span class="pj">${pj||ja}</span>`;
-function stylePicker(){const cur=document.documentElement.dataset.style;return `<div class="styles">${STYLES.map(s=>`<button class="sty" data-act="setStyle" data-v="${s.k}" aria-pressed="${cur===s.k}">
+function stylePicker(){const cur=curStyle;return `<div class="styles">${STYLES.map(s=>`<button class="sty" data-act="setStyle" data-v="${s.k}" aria-pressed="${cur===s.k}">
   <span class="pv" style="background:${s.bg};color:${s.ink};font-family:${s.f}"><b>${s.t}</b><i><span style="background:${s.ink}"></span><span style="background:${s.ac}"></span><span style="background:${s.ph}"></span></i></span>
   <span class="nm">${s.n}</span><span class="ds">${s.d}</span></button>`).join("")}</div>`}
 
@@ -629,7 +624,7 @@ function viewWelcome(){return `<section class="hello">
     <ul class="note" style="margin:0;padding-left:18px;display:grid;gap:4px">
       <li>写真・寸法・服の情報は<b>この端末のブラウザの中だけ</b>に保存されます。運営者のサーバーには送られません。</li>
       <li>ほかの端末とは<b>自動で同期されません</b>。スマホとPCで使う場合は、バックアップを書き出して読み込んでください。</li>
-      <li>ブラウザのデータ削除や容量不足で<b>消える可能性</b>があります。ときどき「設定 → バックアップを書き出す」で保存してください。</li>
+      <li>ブラウザのデータ削除や容量不足で<b>消える可能性</b>があります。画面に出る「いま保存する」や、設定の「Googleドライブ自動バックアップ」で保存しておけば元に戻せます。</li>
       <li>ログイン・メール登録・アクセス解析・広告はありません。</li>
     </ul>
   </div>
