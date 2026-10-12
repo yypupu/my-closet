@@ -444,7 +444,7 @@ const CONFIG = {
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
   googleClientId: "605902820361-6a6tnohfop355db503aaa2m5frlavlun.apps.googleusercontent.com", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
-  version: "0.3.2（写真ボタン修正）"
+  version: "0.4.0（見本の服・手で重ねる）"
 };
 
 /* ===== デザインパターン ===== */
@@ -686,12 +686,13 @@ function viewWish(){const all=S.items.filter(i=>i.kind==="wish");
   const list=all.filter(i=>S.wcat==="all"||i.category===S.wcat).sort((a,b)=>S.wsort==="want"?((b.wantLevel||0)-(a.wantLevel||0)||b.createdAt-a.createdAt):S.wsort==="price"?((a.price??1e12)-(b.price??1e12)):b.createdAt-a.createdAt);
   return `<div class="vh"><h1>${hd("Wish list","ほしい物","ほしい<br>もの")}</h1><span class="sub num">${all.length}点<span class="sfx">ほしい！</span></span></div>
   ${all.length?`<p class="lede">価格は登録したときの価格です。自動では更新されません。</p>
+  <button class="btn sm" style="margin-bottom:14px" data-act="demoCatalog">流行りの見本の服から選ぶ（2026秋冬）</button>
   <div class="chips">${catChips(all,S.wcat,"wcat")}</div>
   <div class="row" style="margin:-4px 0 14px;font-size:12.5px;color:var(--muted)">並び順
    ${[["want","欲しい度"],["new","新しい順"],["price","価格が安い順"]].map(([k,l])=>`<button class="chip" data-act="wsort" data-v="${k}" aria-pressed="${S.wsort===k}">${l}</button>`).join("")}</div>
   <div class="grid wishgrid">${list.map(i=>itemCard(i)).join("")}</div>
   <button class="btn dark fab" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button>`
-  :`<div class="empty-state"><h2>ほしい物はまだありません</h2><p>気になる服を、商品画像やサイズ表のスクリーンショット、商品URL、価格と一緒に保存できます。手持ちの服とのコーデや、サイズの比較にも使えます。</p><button class="btn primary" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button></div>`}`}
+  :`<div class="empty-state"><h2>ほしい物はまだありません</h2><p>気になる服を、商品画像やサイズ表のスクリーンショット、商品URL、価格と一緒に保存できます。手持ちの服とのコーデや、サイズの比較にも使えます。</p><button class="btn primary" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button><div style="margin-top:12px"><button class="btn" data-act="demoCatalog">流行りの見本の服から選ぶ</button></div></div>`}`}
 
 /* ---- 3. 着せ替え ---- */
 function viewTry(){const p=prof();const items=S.items.slice().sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1)||b.createdAt-a.createdAt);
@@ -1003,7 +1004,7 @@ function itemEditor(it,kind){
       const rec={id:d.id||"i_"+uid(),profileId:S.pid,kind:d.kind,category:d.category,name:d.name.trim(),brand:d.brand.trim(),color:d.color,size:(d.size||"").trim(),
         price:d.kind==="wish"?d.price:(it?.price??null),wantLevel:d.kind==="wish"?d.wantLevel:null,wishSize:(d.wishSize||"").trim(),url:(d.url||"").trim(),notes:d.notes,stretch:d.stretch,
         rows:d.rows.map(r=>({label:(r.label||"").trim(),m:Object.fromEntries(Object.entries(r.m).filter(([k])=>CAT[d.category].f.includes(k)))})),selRow:d.selRow||0,
-        isReference:!!d.isReference,photoIds:ids,cut:(it?.cut&&it.photoIds?.[0]===ids[0])?it.cut:null,createdAt:it?.createdAt||Date.now(),updatedAt:Date.now(),purchasedAt:it?.purchasedAt||null,priceAt:d.kind==="wish"?(it?.priceAt&&it.price===d.price?it.priceAt:today()):(it?.priceAt||null)};
+        isReference:!!d.isReference,photoIds:ids,cut:(it?.cut&&it.photoIds?.[0]===ids[0])?it.cut:null,demoKey:it?.demoKey||null,demoCm:it?.demoCm||null,createdAt:it?.createdAt||Date.now(),updatedAt:Date.now(),purchasedAt:it?.purchasedAt||null,priceAt:d.kind==="wish"?(it?.priceAt&&it.price===d.price?it.priceAt:today()):(it?.priceAt||null)};
       await DB.put("items",rec);const i=S.items.findIndex(x=>x.id===rec.id);if(i>=0)S.items[i]=rec;else S.items.push(rec);
       closeSheet();if(it)closeSheet();render();toast("保存しました");if(it)openItem(rec.id)}catch(err){b.disabled=false;toast("保存できませんでした。端末の空き容量を確認してください。")}}
   })}
@@ -1454,6 +1455,69 @@ async function aiUrlIntoDraft(d,btn){const u=(d.url||"").trim();if(!/^https?:\/\
     d._ai.push("画像はページから取り込めないため、商品画像のスクリーンショットを追加してください")}
   catch(e){d._ai=[e.message==="parse"?"このページは読み取れませんでした。スクリーンショットか手入力で登録してください":aiErr(e)]}}
 
+
+/* ===== 流行りの見本の服（イラスト・架空） ===== */
+const DEMO=[
+ {k:"jacket",n:"テーラードジャケット",cat:"outer",color:"グレー",fill:"#4A4D55",ar:1.0,m:{shoulder:44,bodyWidth:54,length:72,sleeve:61},st:{shoulder:1.5,bodyWidth:2,length:2,sleeve:1.5}},
+ {k:"puffer",n:"ボリュームパファージャケット",cat:"outer",color:"レッド",fill:"#7A2734",ar:1.15,m:{shoulder:56,bodyWidth:66,length:66,sleeve:58},st:{shoulder:2,bodyWidth:2,length:2,sleeve:1.5}},
+ {k:"coat",n:"コクーンコート",cat:"outer",color:"ベージュ",fill:"#C49A6C",ar:0.82,m:{shoulder:56,bodyWidth:64,length:108,sleeve:56},st:{shoulder:2,bodyWidth:2,length:3,sleeve:1.5}},
+ {k:"knit",n:"ラウンドショルダーのニット",cat:"tops",color:"ホワイト",fill:"#EDE3D1",ar:1.05,m:{shoulder:58,bodyWidth:60,length:62,sleeve:50},st:{shoulder:2,bodyWidth:2,length:2,sleeve:1.5}},
+ {k:"shirt",n:"カラーシャツ",cat:"tops",color:"ブルー",fill:"#A9C7E8",ar:1.0,m:{shoulder:46,bodyWidth:56,length:74,sleeve:60},st:{shoulder:1.5,bodyWidth:2,length:2,sleeve:1.5}},
+ {k:"peplum",n:"ペプラムブラウス",cat:"tops",color:"ブラック",fill:"#1E1E1E",ar:1.1,m:{shoulder:38,bodyWidth:46,length:58,sleeve:58},st:{shoulder:1.5,bodyWidth:2,length:1.5,sleeve:1}},
+ {k:"wide",n:"太めのスラックス",cat:"pants",color:"グレー",fill:"#8A8D93",ar:0.62,m:{waistG:36,hipG:54,rise:31,inseamG:74,thighW:35,hemW:27},st:{waistG:2,hipG:2,rise:1,inseamG:1,thighW:1,hemW:1}},
+ {k:"tight",n:"タイトパンツ",cat:"pants",color:"ブラック",fill:"#151515",ar:0.4,m:{waistG:33,hipG:46,rise:26,inseamG:72,thighW:26,hemW:14},st:{waistG:2,hipG:2,rise:1,inseamG:1,thighW:1,hemW:0.5}},
+ {k:"mini",n:"チェックのマイクロミニスカート",cat:"skirt",color:"柄・その他",fill:"#B23A48",ar:1.5,m:{waistG:66,hipG:92,skirtLen:32},st:{waistG:4,hipG:4,skirtLen:1},round:true},
+ {k:"pleats",n:"ロングプリーツスカート",cat:"skirt",color:"ブラウン",fill:"#6B4A35",ar:0.72,m:{waistG:66,hipG:100,skirtLen:82},st:{waistG:4,hipG:4,skirtLen:1},round:true},
+ {k:"derby",n:"ダービーシューズ",cat:"shoes",color:"ブラウン",fill:"#4A2F22",ar:2.4,m:{footLen:25,heel:3},st:{footLen:1,heel:0},cm:11},
+ {k:"boots",n:"サイハイブーツ",cat:"shoes",color:"ブラック",fill:"#1A1A1A",ar:0.32,m:{footLen:24,heel:7},st:{footLen:1,heel:0},cm:64},
+ {k:"bag",n:"ビッグバッグ",cat:"bag",color:"ブラウン",fill:"#8B5A3C",ar:1.1,m:{bagW:46,bagH:36,bagD:16},st:{bagW:0,bagH:0,bagD:0}},
+ {k:"stole",n:"レオパード柄のストール",cat:"acc",color:"柄・その他",fill:"#C99A5B",ar:0.26,m:{},st:{},cm:70}
+];
+function drawDemo(d){const H=760,W=Math.round(H*d.ar)+40;const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  const ink="#2A2A2A";x.lineJoin="round";x.lineCap="round";const S=(px,py)=>[20+px/100*(W-40),py/100*(H-20)+10];
+  const poly=(pts,fill)=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.closePath();x.fillStyle=fill;x.fill();x.lineWidth=4;x.strokeStyle=ink;x.stroke()};
+  const line=(pts,w=3,col=ink)=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.lineWidth=w;x.strokeStyle=col;x.stroke()};
+  const dot=(a,b,r,col)=>{const[q,w]=S(a,b);x.beginPath();x.arc(q,w,r,0,7);x.fillStyle=col;x.fill()};
+  const clipPoly=pts=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.closePath();x.save();x.clip()};
+  const f=d.fill;
+  switch(d.k){
+   case"jacket":{const P=[[37,1],[17,6],[7,58],[5,97],[16,98],[21,62],[23,32],[24,100],[76,100],[77,32],[79,62],[84,98],[95,97],[93,58],[83,6],[63,1],[50,44]];poly(P,f);line([[37,1],[44,46],[50,44]]);line([[63,1],[56,46],[50,44]]);line([[50,44],[50,100]]);dot(47,60,7,"#111");dot(47,74,7,"#111");line([[28,72],[40,72]],3);line([[60,72],[72,72]],3);break}
+   case"puffer":{const P=[[35,3],[14,10],[3,60],[3,96],[18,98],[22,58],[22,100],[78,100],[78,58],[82,98],[97,96],[97,60],[86,10],[65,3],[50,10]];poly(P,f);for(let i=1;i<7;i++)line([[22,12+i*13],[78,12+i*13]],3,"rgba(0,0,0,.45)");for(let i=1;i<7;i++){line([[4,20+i*11],[21,20+i*11]],3,"rgba(0,0,0,.45)");line([[79,20+i*11],[96,20+i*11]],3,"rgba(0,0,0,.45)")}line([[50,10],[50,100]],3);poly([[34,3],[66,3],[64,12],[36,12]],f);break}
+   case"coat":{const P=[[38,1],[14,8],[4,48],[6,70],[17,70],[19,48],[16,80],[24,100],[76,100],[84,80],[81,48],[83,70],[94,70],[96,48],[86,8],[62,1],[50,30]];poly(P,f);line([[38,1],[45,32],[50,30],[55,32],[62,1]]);line([[50,30],[52,100]]);dot(46,45,8,"#5A3B25");dot(46,60,8,"#5A3B25");break}
+   case"knit":{const P=[[36,2],[10,14],[2,80],[14,84],[20,40],[20,100],[80,100],[80,40],[86,84],[98,80],[90,14],[64,2],[50,8]];poly(P,f);x.save();clipPoly([[20,92],[80,92],[80,100],[20,100]]);for(let i=21;i<80;i+=3)line([[i,92],[i,100]],2,"rgba(0,0,0,.25)");x.restore();poly([[2,80],[14,84],[14,90],[2,86]],f);poly([[86,84],[98,80],[98,86],[86,90]],f);line([[36,2],[50,10],[64,2]],3);break}
+   case"shirt":{const P=[[38,3],[18,8],[5,62],[4,96],[15,97],[19,64],[22,30],[22,100],[78,100],[78,30],[81,64],[85,97],[96,96],[95,62],[82,8],[62,3],[50,7]];poly(P,f);poly([[38,3],[50,7],[44,16],[34,9]],"#FFFFFF");poly([[62,3],[50,7],[56,16],[66,9]],"#FFFFFF");line([[50,7],[50,100]]);for(let i=0;i<6;i++)dot(53,20+i*14,4,"#FFFFFF");break}
+   case"peplum":{const P=[[40,3],[22,8],[8,58],[6,92],[16,93],[20,60],[28,30],[30,60],[14,100],[86,100],[70,60],[72,30],[80,60],[84,93],[94,92],[92,58],[78,8],[60,3],[50,9]];poly(P,f);line([[30,60],[70,60]],3,"#555");break}
+   case"wide":{const P=[[22,0],[78,0],[96,100],[56,100],[50,30],[44,100],[4,100]];poly(P,f);poly([[22,0],[78,0],[78,6],[22,6]],f);line([[32,8],[24,100]],2,"rgba(0,0,0,.4)");line([[68,8],[76,100]],2,"rgba(0,0,0,.4)");line([[50,6],[50,30]]);break}
+   case"tight":{const P=[[16,0],[84,0],[90,40],[80,100],[56,100],[50,30],[44,100],[20,100],[10,40]];poly(P,f);poly([[16,0],[84,0],[84,6],[16,6]],f);line([[50,6],[50,30]],3,"#444");break}
+   case"mini":{const P=[[20,0],[80,0],[98,100],[2,100]];clipPoly(P);x.fillStyle=f;x.fillRect(0,0,W,H);for(let i=0;i<14;i++){const xx=i/14*W;x.fillStyle="rgba(25,35,70,.45)";x.fillRect(xx,0,W/28,H);x.fillRect(0,i/14*H,W,H/28)}for(let i=0;i<14;i++){x.fillStyle="rgba(255,220,120,.6)";x.fillRect(i/14*W+W/40,0,3,H);x.fillRect(0,i/14*H+H/40,W,3)}x.restore();poly(P,"rgba(0,0,0,0)");poly([[20,0],[80,0],[81,10],[19,10]],"#1E2448");break}
+   case"pleats":{const P=[[28,0],[72,0],[98,100],[2,100]];poly(P,f);for(let i=1;i<12;i++){const t=i/12;line([[28+44*t,4],[2+96*t,100]],2,"rgba(0,0,0,.35)")}poly([[28,0],[72,0],[73,6],[27,6]],f);break}
+   case"derby":{const P=[[4,40],[40,34],[56,6],[80,8],[96,52],[98,84],[2,90],[2,60]];poly(P,f);poly([[2,84],[98,80],[98,96],[2,98]],"#1A1A1A");line([[48,20],[66,24]],3,"#D9C3A5");line([[46,30],[66,32]],3,"#D9C3A5");break}
+   case"boots":{const P=[[18,0],[82,0],[80,72],[86,84],[98,92],[98,100],[2,100],[4,90],[20,82]];poly(P,f);poly([[60,92],[78,92],[76,100],[62,100]],"#000");line([[20,4],[80,4]],3,"#444");break}
+   case"bag":{const[a,b]=S(30,24),[c2,d2]=S(70,24);x.beginPath();x.moveTo(a,b);x.bezierCurveTo(a,0,c2,0,c2,d2);x.lineWidth=14;x.strokeStyle=ink;x.stroke();x.lineWidth=8;x.strokeStyle=f;x.stroke();poly([[4,24],[96,24],[100,100],[0,100]],f);line([[4,34],[96,34]],3,"rgba(0,0,0,.35)");break}
+   case"stole":{const P=[[6,0],[94,0],[94,92],[6,92]];clipPoly(P);x.fillStyle=f;x.fillRect(0,0,W,H);let seed=7;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280};for(let i=0;i<70;i++){const q=rnd()*W,r=rnd()*H,z=6+rnd()*10;x.beginPath();x.ellipse(q,r,z,z*.7,rnd()*3,0,7);x.fillStyle="#3A2416";x.fill();x.beginPath();x.ellipse(q,r,z*.5,z*.35,0,0,7);x.fillStyle="#9A6B35";x.fill()}x.restore();poly(P,"rgba(0,0,0,0)");for(let i=8;i<94;i+=6)line([[i,92],[i,100]],3,"#7A5A30");break}
+  }
+  // 透明部分を切り落とす
+  const id=x.getImageData(0,0,W,H).data;let x0=W,y0=H,x1=0,y1=0;for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++)if(id[(yy*W+xx)*4+3]>10){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy}
+  const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);return o}
+function demoRows(d){const sz=[["S",-1],["M",0],["L",1]];const keys=Object.keys(d.m);if(!keys.length)return [{label:"F",m:{}}];
+  return sz.map(([l,k])=>({label:l,m:Object.fromEntries(keys.map(key=>[key,GF[key].t?{v:Math.round((d.m[key]+k*(d.st[key]||0))*10)/10,mode:d.round&&["waistG","hipG"].includes(key)?"round":"flat"}:{v:Math.round((d.m[key]+k*(d.st[key]||0))*10)/10}]))}))}
+function demoCatalog(after){const sel=new Set();let size="M";const prev={};
+  const body=()=>`<p class="note" style="margin:0 0 12px">2026年秋冬に流行っている形を、イラストにした<b>見本（架空の服）</b>です。寸法は一般的な目安なので、実際に買うときは商品のサイズ表で確かめてください。ほしい物に入れると、「手で重ねる」で自分の写真に着せられます。</p>
+   <div class="field"><span class="lbl">サイズ</span><div class="chips" style="margin:0">${["S","M","L"].map(z=>`<button class="chip" data-dz="${z}" aria-pressed="${size===z}">${z}</button>`).join("")}</div></div>
+   <div class="pick">${DEMO.map(d=>`<button class="card" data-dk="${d.k}" aria-pressed="${sel.has(d.k)}"><div class="ph checker" style="display:grid;place-items:center;padding:8px"><img src="${prev[d.k]||""}" alt="" style="object-fit:contain;max-height:100%">${S.items.some(i=>i.demoKey===d.k)?'<span class="badge">追加済み</span>':""}<span class="tick">✓</span></div><div class="cmeta"><span style="white-space:normal">${esc(d.n)}</span></div></button>`).join("")}</div>`;
+  const foot=()=>`<button class="btn" data-act="closeSheet">閉じる</button><button class="btn primary" data-dgo="1" ${sel.size?"":"disabled"}>ほしい物に追加（${sel.size}）</button>`;
+  DEMO.forEach(d=>{try{prev[d.k]=drawDemo(d).toDataURL("image/png")}catch(e){}});
+  const w=openSheet({title:"流行りの見本の服",body:body(),foot:foot()});const re=()=>setSheet(w,{body:body(),foot:foot()});
+  w.addEventListener("click",async e=>{const z=e.target.closest("[data-dz]");if(z){size=z.dataset.dz;re();return}
+    const c=e.target.closest("[data-dk]");if(c){sel.has(c.dataset.dk)?sel.delete(c.dataset.dk):sel.add(c.dataset.dk);re();return}
+    const g=e.target.closest("[data-dgo]");if(!g||g.disabled)return;g.disabled=true;g.textContent="追加しています…";
+    for(const k of sel){const d=DEMO.find(x=>x.k===k);const cv=drawDemo(d);const blob=await new Promise(r=>cv.toBlob(r,"image/png"));const bid=await saveBlob(blob,S.pid);
+      const rows=demoRows(d);const si=Math.max(0,rows.findIndex(r=>r.label===size));
+      const rec={id:"i_"+uid(),profileId:S.pid,kind:"wish",category:d.cat,name:d.n,brand:"見本",color:d.color,size:"",price:null,wantLevel:3,wishSize:rows[si].label,url:"",
+        notes:"流行りの見本（架空の服）です。寸法は一般的な目安なので、実際に買うときは商品のサイズ表で確かめてください。",stretch:"none",rows,selRow:si,isReference:false,photoIds:[bid],
+        cut:{blobId:bid,w:cv.width,h:cv.height,tol:0,removed:true},demoKey:d.k,demoCm:d.cm||null,createdAt:Date.now(),updatedAt:Date.now(),purchasedAt:null,priceAt:null};
+      await DB.put("items",rec);S.items.push(rec)}
+    closeSheet();render();toast(`見本の服を${sel.size}点、ほしい物に追加しました`);after&&after()})}
 /* ===== 手で重ねる着せ替え（AIなし・端末内のみ） ===== */
 async function loadImg(blob){return await new Promise((res,rej)=>{const u=URL.createObjectURL(blob);const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error("img"));im.src=u})}
 async function makeCutout(blob,tol){const im=await loadImg(blob);const sc=Math.min(1,700/Math.max(im.naturalWidth,im.naturalHeight));
@@ -1487,7 +1551,7 @@ function cutoutSheet(it,onDone){let tol=it.cut?.tol||40;let cur=null;
   $("#cut-tol",w).addEventListener("input",e=>{tol=+e.target.value;$("#cut-v",w).textContent=tol;clearTimeout(t);t=setTimeout(run,250)});
   $("#cut-ok",w).addEventListener("click",async()=>{if(!cur)return;if(it.cut?.blobId)await deleteBlobs([it.cut.blobId]);const id=await saveBlob(cur.blob,it.profileId);
     it.cut={blobId:id,w:cur.w,h:cur.h,tol,removed:cur.removed};await DB.put("items",it);closeSheet();onDone&&onDone()})}
-function garmentCm(it){const r=rowOf(it);const v=k=>toNum(r?.m?.[k]?.v);
+function garmentCm(it){const r=rowOf(it);const v=k=>toNum(r?.m?.[k]?.v);if(it.demoCm&&["shoes","acc"].includes(it.category))return it.demoCm;
   switch(it.category){case"tops":case"outer":case"onepiece":return v("length");case"pants":return (v("rise")&&v("inseamG"))?v("rise")+v("inseamG"):null;case"skirt":return v("skirtLen");case"bag":return v("bagH");default:return null}}
 function calSheet(p,key,onDone){const step={i:0,top:null,bottom:null,cx:[]};
   const w=openSheet({title:"縮尺を合わせる",cls:"full",body:`<p id="cal-msg" style="margin:0 0 10px;font-weight:700">① 頭のてっぺんをタップしてください</p><div class="stage" id="cal-stage"><img class="bodyimg" data-blob="${p.photos[key]}" alt="全身写真"></div>
@@ -1510,7 +1574,7 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
    <div class="tools">
     <button class="btn" data-mt="front">前へ</button><button class="btn" data-mt="back">後ろへ</button><button class="btn" data-mt="flip">左右反転</button><button class="btn" data-mt="remove">外す</button>
     <button class="btn" data-mt="smaller">小さく</button><button class="btn" data-mt="bigger">大きく</button><button class="btn" data-mt="rot">少し回す</button><button class="btn" data-mt="fit">自動に戻す</button></div>
-   <p class="note" style="margin:0 0 8px">重ねる服（タップで追加・もう一度で選択）　<button class="link" data-mt="cut">背景の消し具合</button>　<button class="link" data-mt="recal">縮尺を合わせ直す</button></p>
+   <p class="note" style="margin:0 0 8px"><button class="btn sm" style="margin-bottom:8px" data-mt="demo">流行りの見本の服を追加</button><br>重ねる服（タップで追加・もう一度で選択）　<button class="link" data-mt="cut">背景の消し具合</button>　<button class="link" data-mt="recal">縮尺を合わせ直す</button></p>
    <div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 76px" data-add="${i.id}"><div class="ph" style="aspect-ratio:4/5">${`<img data-blob="${i.photoIds[0]}" alt="">`}${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category].l)}</span></div></button>`).join("")||`<p class="note">写真のある服を登録すると、ここに出ます。</p>`}</div>
    <p class="note" style="margin:12px 0 0">写真を重ねて見るだけの機能です。平置きの服は実際に着たときより幅が広く見えます。丈の位置は写真の撮り方で数cmずれることがあります。</p>`,
    foot:`<button class="btn" data-mt="outfit">コーデに保存</button><button class="btn primary" data-mt="save">画像を保存</button>`});
@@ -1526,7 +1590,7 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
     const bottom=l.y+l.h*l.s/2,top=l.y-l.h*l.s/2;const floor=(cal.bottom*SH()-bottom)/ppc;const len=(l.h*l.s)/ppc;
     el.textContent=["shoes","bag","acc"].includes(it.category)?`${it.name||CAT[it.category].l}：画面上の高さ 約${n1(len)}cm`:`${it.name||CAT[it.category].l}：裾は床から約${n1(Math.max(0,floor))}cm（丈 約${n1(len)}cm${l.auto?"・自動":"・手で調整"}）`};
   const autoPlace=l=>{const it=itemById(l.itemId);const H=(cal.bottom-cal.top)*SH(),top=cal.top*SH(),cx=cal.cx*SW();const ppc=pxPerCm();const cm=garmentCm(it);
-    let hpx=cm&&ppc?cm*ppc:{tops:.36,outer:.45,onepiece:.55,pants:.58,skirt:.3,shoes:.07,bag:.18,acc:.1}[it.category]*H;
+    let hpx=cm&&ppc?cm*ppc:it.demoCm&&ppc?it.demoCm*ppc:{tops:.36,outer:.45,onepiece:.55,pants:.58,skirt:.3,shoes:.07,bag:.18,acc:.1}[it.category]*H;
     l.s=hpx/l.h;l.r=0;l.flip=false;l.auto=!!(cm&&ppc);
     const topFrac={tops:.14,outer:.135,onepiece:.14,pants:.42,skirt:.40,bag:.42,acc:.05}[it.category];
     if(it.category==="shoes"){l.x=cx;l.y=top+H-hpx/2}else{l.x=cx;l.y=top+(topFrac??.2)*H+hpx/2}};
@@ -1554,6 +1618,7 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
       const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));const id=await saveBlob(blob,p.id);p.tryons=p.tryons||[];p.tryons.push({id:"t_"+uid(),kind:"manual",itemIds:L.map(q=>q.itemId),blobId:id,photo:key,createdAt:Date.now()});await saveProfile(p);render();toast("画像を保存しました（着せ替え画面の下にあります）");return}
     if(m==="outfit"){const ids=L.map(q=>q.itemId);while(sheets.length)closeSheet();outfitEditor(null,ids);return}
     if(m==="recal"){closeSheet();calSheet(p,key,()=>manualTry());return}
+    if(m==="demo"){closeSheet();demoCatalog(()=>manualTry());return}
     if(!l){toast("先に服を選んでください");return}
     if(m==="cut"){cutoutSheet(itemById(l.itemId),async()=>{const it=itemById(l.itemId);l.url=await blobURL(it.cut.blobId);const ratio=l.h*l.s;l.w=it.cut.w;l.h=it.cut.h;l.s=ratio/l.h;if(l.el){l.el.remove();l.el=null}draw()});return}
     if(m==="front"&&sel<L.length-1){[L[sel],L[sel+1]]=[L[sel+1],L[sel]];sel++}
@@ -1661,7 +1726,7 @@ const ACT={
   createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render();
     if(DRIVE.available()&&!S.bk.drive.enabled){const w=openSheet({title:"消えても戻せるようにしませんか？",body:`<p style="margin:0 0 10px">データはこのスマホの中だけにあるため、ブラウザのデータを消したり機種変更したりすると消えてしまいます。</p><p style="margin:0 0 14px"><b>Googleドライブ自動保存</b>をオンにすると、変更のたびにあなたのGoogleドライブへ保存され、別のスマホや開き方でも「Googleドライブから戻す」で元通りにできます。</p><p class="note" style="margin:0">保存先はあなた自身のGoogleドライブだけです。作った人には届きません。</p>`,foot:`<button class="btn" data-act="closeSheet">あとで</button><button class="btn primary" data-act="driveSetup">オンにする</button>`})}},
   sample:()=>createSample(),
-  manualTry:()=>manualTry(),
+  manualTry:()=>manualTry(), demoCatalog:()=>demoCatalog(),
   skelCheck:()=>{const p=prof();quizSheet({title:"骨格セルフチェック",qs:SKQ,prev:p.skeleton?.raw,intro:"鏡を見たり、触って確かめながら、いちばん近いものを選んでください。わからないものは「わからない」でOKです。",
     onDone:async(ans,raw)=>{p.skeleton={...skeletonResult(ans,p.body),raw,at:Date.now()};await saveProfile(p);render();toast(`${SKEL[p.skeleton.type].n}の傾向が出ました（参考）`)}})},
   pcCheck:()=>{const p=prof();quizSheet({title:"パーソナルカラー セルフチェック",qs:PCQ,prev:p.pcolor?.raw,intro:"自然光の下で、すっぴんに近い状態で確かめるのがおすすめです。わからないものは「わからない」でOKです。",
