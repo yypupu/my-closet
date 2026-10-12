@@ -985,7 +985,7 @@ function itemEditor(it,kind){
     else if(t.dataset.rf){d.rows[+t.dataset.row].label=t.value}});
   w.addEventListener("change",async e=>{const t=e.target;if(t.dataset.ed!=="addPhoto"||!t.files?.length)return;
     const blobs=await filesToBlobs(t.files);blobs.forEach(b=>d.photos.push({id:"t_"+uid(),blob:b,url:URL.createObjectURL(b)}));t.value="";re()});
-  w.addEventListener("click",async e=>{const b=e.target.closest("[data-ed]");if(!b)return;e.preventDefault();const a=b.dataset.ed;
+  w.addEventListener("click",async e=>{const b=e.target.closest("[data-ed]");if(!b||b.tagName==="INPUT")return;e.preventDefault();const a=b.dataset.ed;
     if(a==="aiRead"){await aiReadIntoDraft(d,b);re()}
     else if(a==="aiUrl"){await aiUrlIntoDraft(d,b);re()}
     else if(a==="cat"){d.category=b.dataset.v;re()}
