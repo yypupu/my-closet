@@ -433,7 +433,7 @@ const CONFIG = {
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
   googleClientId: "605902820361-6a6tnohfop355db503aaa2m5frlavlun.apps.googleusercontent.com", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
-  version: "0.2.0（自動バックアップ）"
+  version: "0.3.0（AI接続）"
 };
 
 /* ===== デザインパターン ===== */
@@ -599,6 +599,7 @@ async function boot(){
   const bk=await DB.get("meta","backupState");S.bk=Object.assign(BK0(),bk?.value||{});S.bk.drive=Object.assign(BK0().drive,S.bk.drive||{});
   DB.onChange=markChanged;if(DRIVE.available())DRIVE.load().catch(()=>{});
   if(S.bk.drive.enabled&&S.bk.changes>0)S.driveTap=true;
+  try{await AI.load()}catch(e){}
   S.ready=true;render()}
 async function loadProfileData(){S.items=S.pid?await DB.byProfile("items",S.pid):[];S.outfits=S.pid?await DB.byProfile("outfits",S.pid):[]}
 async function switchProfile(id){S.pid=id;await DB.put("meta",{key:"activeProfile",value:id});S.tryItem=null;S.q="";S.cat="all";await loadProfileData();render()}
@@ -678,7 +679,7 @@ function viewWish(){const all=S.items.filter(i=>i.kind==="wish");
 function viewTry(){const p=prof();const items=S.items.slice().sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1)||b.createdAt-a.createdAt);
   const it=itemById(S.tryItem);const phId=p.photos?.[S.tryPhoto];
   return `<div class="vh"><h1>${hd("Fitting","着せ替え","きせかえ")}</h1></div>
-  <div class="notice warn"><b>AIによる画像試着は、まだ接続していません</b>この版では合成画像は作りません。下で全身写真と服を並べて見比べたり、寸法の相性を確認できます。</div>
+  ${AI.imgReady()?"":`<div class="notice warn"><b>AIによる画像試着は、まだ使えません</b>${AI.ready()?"このAPIキーでは画像を作るモデルが使えません。":"設定の「AI（Gemini）」でAPIキーを入れると使えます。"}下で全身写真と服を並べて見比べたり、寸法の相性を確認できます。</div>`}
   <div class="panel"><h2>全身写真</h2>
     <div class="chips" style="margin-bottom:0">${[["front","正面"],["side","横"],["back","後ろ"]].map(([k,l])=>`<button class="chip" data-act="tryPhoto" data-v="${k}" aria-pressed="${S.tryPhoto===k}">${l}${p.photos?.[k]?"":"（未登録）"}</button>`).join("")}</div></div>
   <div class="panel"><h2>服を選ぶ</h2>
@@ -688,8 +689,10 @@ function viewTry(){const p=prof();const items=S.items.slice().sort((a,b)=>(a.kin
     <div class="ph" style="aspect-ratio:3/5">${phId?`<img data-blob="${phId}" alt="全身写真">`:`<div class="empty" style="text-align:center;padding:10px">全身写真が未登録です<br><button class="link" data-act="tab" data-tab="me">Myサイズで登録</button></div>`}</div>
     <div class="ph" style="aspect-ratio:3/5">${it?.photoIds?.[0]?`<img data-blob="${it.photoIds[0]}" alt="服" style="object-fit:contain;background:var(--surface)">`:`<div class="empty">服を選んでください</div>`}</div></div>
     <p class="note" style="margin:0 0 14px">並べて表示しています（合成画像ではありません）</p>`:""}
+  ${AI.imgReady()?tryAIPanel(it,phId):""}
   ${it?`<div class="panel"><h2>${esc(it.name||CAT[it.category]?.l)} の相性</h2>${fitPanel(it)}</div>`:""}
-  ${aiTryInfo()}`}
+  ${savedTryHTML()}
+  ${AI.imgReady()?"":aiTryInfo()}`}
 function aiTryInfo(){return `<details class="help"><summary>AIで画像試着を使えるようになったら</summary>
   <ul>
    <li>全身写真と服の画像をもとに、着用イメージを2〜3パターン作って並べ、気に入ったものを保存できるようにする予定です。</li>
@@ -703,6 +706,7 @@ function aiTryInfo(){return `<details class="help"><summary>AIで画像試着を
 function viewCoord(){const all=S.outfits;const f=S.ofilter;
   const list=all.filter(o=>f==="all"||(f==="fav"?o.favorite:o.purpose===f)).sort((a,b)=>b.updatedAt-a.updatedAt);
   return `<div class="vh"><h1>${hd("Outfits","コーデ","コーデ帳")}</h1><span class="sub num">${all.length}件<span class="sfx">つくった</span></span></div>
+  ${AI.ready()&&S.items.length?`<button class="btn sm primary" style="margin-bottom:14px" data-act="aiCoord">AIにコーデを提案してもらう</button>`:""}
   ${all.length?`<div class="chips">${[["all","すべて"],["fav","★ お気に入り"],...PURPOSES.map(p=>[p,p])].map(([k,l])=>`<button class="chip" data-act="ofilter" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join("")}</div>
   <div class="grid">${list.map(o=>{const ids=outfitItemIds(o).slice(0,4);const ims=ids.map(id=>itemById(id)).filter(Boolean).map(i=>i.photoIds?.[0]).filter(Boolean).slice(0,4);
     return `<button class="card" data-act="editOutfit" data-id="${o.id}"><div class="collage n${Math.min(ims.length,4)||1}" style="position:relative">${ims.length?ims.map(b=>`<div><img data-blob="${b}" alt=""></div>`).join(""):`<div style="display:grid;place-items:center;color:var(--muted);font-size:12px">写真なし</div>`}</div>
@@ -732,7 +736,8 @@ function viewMe(){const p=prof();const b=p.body||{};const filled=BODY.filter(x=>
    <dt>テイスト</dt><dd>${p.tastes?.length?esc(p.tastes.join("、")):"未設定"}</dd>
    <dt>着心地</dt><dd>${esc((FITPREF.find(f=>f[0]===p.fitPref)||[])[1]||"未設定")}</dd>
    <dt>目的</dt><dd>${p.goals?.length?esc(p.goals.join("、")):"未設定"}</dd></dl></div>
-  <div class="panel"><h2>似合わせの提案</h2>${suggestHTML(p)}</div>`}
+  <div class="panel"><h2>似合わせの提案</h2>${suggestHTML(p)}</div>
+  ${AI.ready()?aiSuggestPanel(p):""}`}
 function historyHTML(p){const h=(p.history||[]).slice(-8).reverse();
   return h.map((e,i)=>{const prev=h[i+1];const ch=prev?BODY.map(x=>{const a=bodyVal(e.body,x.k)?.avg,bb=bodyVal(prev.body,x.k)?.avg;return (a!=null&&bb!=null&&Math.abs(a-bb)>=.1)?`${x.l} ${signed(a-bb)}`:null}).filter(Boolean):[];
     return `<div class="h"><span class="num">${fmtDate(e.date)}</span><span>${prev?(ch.length?esc(ch.join("、")):"変化なし"):"最初の記録"}</span></div>`}).join("")}
@@ -838,7 +843,9 @@ function itemEditor(it,kind){
    <div class="thumbs">${d.photos.map((ph,i)=>`<div class="thumb">${ph.existing?`<img data-blob="${ph.id}" alt="">`:`<img src="${ph.url}" alt="">`}<button class="x" data-ed="rmPhoto" data-i="${i}" aria-label="写真を外す">×</button></div>`).join("")}</div>
    <div class="row" style="margin-bottom:10px">
      <label class="btn sm filebtn">${ICON.camera}撮影する<input type="file" accept="image/*" capture="environment" data-ed="addPhoto"></label>
-     <label class="btn sm filebtn">${ICON.image}画像を選ぶ<input type="file" accept="image/*" multiple data-ed="addPhoto"></label></div>
+     <label class="btn sm filebtn">${ICON.image}画像を選ぶ<input type="file" accept="image/*" multiple data-ed="addPhoto"></label>
+     ${AI.ready()&&d.photos.length?`<button class="btn sm primary" data-ed="aiRead">AIで読み取る（仮入力）</button>`:""}</div>
+   ${d._ai?`<div class="notice"><b>AIの仮入力</b>${esc(d._ai.join("・"))}。内容を確認・修正してから保存してください。写真の見た目から寸法を推測して入れることはしていません。</div>`:""}
    <details class="help"><summary>${isWish?"取り込みのコツ":"撮影のコツ"}</summary><ul>
      ${isWish?`<li>商品画像やサイズ表は、スクリーンショットを撮って「画像を選ぶ」から追加できます。</li><li>商品URLは保存だけ行います。この版では商品ページから画像や情報を自動で取り込みません。</li>`:""}
      <li>ハンガーに掛けるか平置きにして、服全体が入るよう正面から撮ります。</li><li>明るい場所で、無地の床・壁など背景はシンプルに。</li><li>必要なら背面・タグ・素材表示の写真も追加しておくと便利です。</li></ul></details>
@@ -872,7 +879,8 @@ function itemEditor(it,kind){
   w.addEventListener("change",async e=>{const t=e.target;if(t.dataset.ed!=="addPhoto"||!t.files?.length)return;
     const blobs=await filesToBlobs(t.files);blobs.forEach(b=>d.photos.push({id:"t_"+uid(),blob:b,url:URL.createObjectURL(b)}));t.value="";re()});
   w.addEventListener("click",async e=>{const b=e.target.closest("[data-ed]");if(!b)return;e.preventDefault();const a=b.dataset.ed;
-    if(a==="cat"){d.category=b.dataset.v;re()}
+    if(a==="aiRead"){await aiReadIntoDraft(d,b);re()}
+    else if(a==="cat"){d.category=b.dataset.v;re()}
     else if(a==="color"){d.color=d.color===b.dataset.v?"":b.dataset.v;re()}
     else if(a==="want"){d.wantLevel=+b.dataset.v;re()}
     else if(a==="stretch"){d.stretch=b.dataset.v;re()}
@@ -928,7 +936,7 @@ function openItem(id){const it=itemById(id);if(!it)return;const c=CAT[it.categor
 /* 合う服を探す（AIなし：組み合わせられるカテゴリを表示） */
 function matchItem(id){const it=itemById(id);const cats=MATCH[it.category]||[];const sel=new Set();
   const groups=cats.map(c=>({c,list:S.items.filter(x=>x.category===c&&x.id!==id)})).filter(g=>g.list.length);
-  const body=()=>`<div class="notice"><b>AIを使わない簡易表示です</b>「${esc(it.name||CAT[it.category].l)}」と組み合わせられるカテゴリの服を並べています。選んでそのままコーデにできます。</div>
+  const body=()=>`<div class="notice"><b>AIを使わない簡易表示です</b>「${esc(it.name||CAT[it.category].l)}」と組み合わせられるカテゴリの服を並べています。選んでそのままコーデにできます。${AI.ready()?`<div style="margin-top:10px"><button class="btn sm primary" data-act="aiCoord" data-base="${it.id}">AIに組み合わせを提案してもらう</button></div>`:""}</div>
    ${groups.length?groups.map(g=>`<p class="sec-h">${CAT[g.c].l}</p><div class="pick" style="margin-bottom:16px">${g.list.map(x=>`<button class="card" data-pk="${x.id}" aria-pressed="${sel.has(x.id)}"><div class="ph">${x.photoIds?.[0]?`<img data-blob="${x.photoIds[0]}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}${x.kind==="wish"?'<span class="badge">ほしい</span>':""}<span class="tick">✓</span></div><div class="cmeta"><span>${esc(x.name||CAT[x.category].l)}</span></div></button>`).join("")}</div>`).join("")
      :`<p class="note">組み合わせられる服がまだ登録されていません。</p>`}`;
   const w=openSheet({title:"合う服を探す",body:body(),foot:`<button class="btn" data-act="closeSheet">閉じる</button><button class="btn primary" data-mk="1">選んだ服でコーデを作る</button>`});
@@ -937,8 +945,9 @@ function matchItem(id){const it=itemById(id);const cats=MATCH[it.category]||[];c
 
 /* ===== コーデ編集 ===== */
 function slotFor(it){if(it.category==="onepiece")return "tops";return (SLOTS.find(s=>s.cats.includes(it.category))||SLOTS[0]).k}
-function outfitEditor(o,presetIds=[]){
+function outfitEditor(o,presetIds=[],init={}){
   const d=o?JSON.parse(JSON.stringify(o)):{id:null,name:"",purpose:"普段",slots:{tops:[],bottoms:[],shoes:[],bag:[],acc:[]},favorite:false,notes:""};
+  if(!o)Object.assign(d,init);
   presetIds.forEach(id=>{const it=itemById(id);if(it){const k=slotFor(it);if(!d.slots[k].includes(id))d.slots[k].push(id)}});
   const body=()=>`<div class="field"><label for="o-name">コーデの名前</label><input class="inp" id="o-name" data-of="name" value="${esc(d.name)}" placeholder="例：週末のカフェ" maxlength="40"></div>
    <div class="field"><span class="lbl">用途</span><div class="chips wrap" style="margin:0">${PURPOSES.map(p=>`<button class="chip" data-oe="purpose" data-v="${p}" aria-pressed="${d.purpose===p}">${p}</button>`).join("")}</div></div>
@@ -1042,11 +1051,7 @@ async function settingsSheet(){let est="";try{const e=await navigator.storage?.e
    <p class="note" style="margin:0 0 12px">最後の保存：<b>${S.bk.lastAt?new Date(S.bk.lastAt).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}):"まだありません"}</b>${S.bk.changes?` ・ その後の変更 ${S.bk.changes}件`:""}</p>
    <div class="row"><button class="btn primary grow" data-act="quickBackup">いまバックアップする</button>
    <label class="btn grow filebtn">バックアップから復元<input type="file" accept=".zip,application/zip" data-restore="1"></label></div></div>
-  <div class="panel"><h2>AI・外部への送信</h2><p style="margin:0 0 10px;font-size:14px">いまの状態：<b>外部への送信なし</b>（AI未接続）</p>
-   <div class="tbl-wrap"><table class="cmp"><tr><th></th><th>AIを使わない（いま）</th><th>AIを使う（予定）</th></tr>
-   <tr><th>送るもの</th><td>なし</td><td>実行したときだけ、選んだ写真・服の画像・必要な文字情報</td></tr>
-   <tr><th>できること</th><td>登録・検索・コーデ作成・寸法の比較・体型の特徴と一般的な提案</td><td>タグやサイズ表の読み取り（仮入力）、好みに合わせた提案、画像試着</td></tr>
-   <tr><th>費用</th><td>無料</td><td>AIの利用料（使う人の負担を予定）</td></tr></table></div></div>
+  ${aiPanel()}
   <div class="panel"><h2>危険な操作</h2><button class="btn danger block" data-act="wipeAll">この端末のデータをすべて削除</button></div>
   <div class="panel"><h2>このアプリについて</h2>${aboutHTML()}</div>`;
   openSheet({title:"設定",body})}
@@ -1233,6 +1238,184 @@ async function createSample(){const p=newProfile("サンプル（架空）");p.s
   await DB.put("outfits",{id:"o_"+uid(),profileId:p.id,name:"週末のカフェ（サンプル）",purpose:"普段",slots:{tops:[shirt.id],bottoms:[denim.id],shoes:[shoes.id],bag:[],acc:[]},favorite:true,notes:"",createdAt:Date.now(),updatedAt:Date.now()});
   await DB.put("meta",{key:"activeProfile",value:p.id});await loadProfileData();S.bk.changes=0;await saveBk();S.tab="closet";render();toast("架空のサンプルを作りました")}
 
+
+/* ===== AI（Gemini・利用者本人のAPIキー） ===== */
+const AI={key:null,models:{text:null,image:null},
+  usable(){return !window.claude},
+  ready(){return this.usable()&&!!this.key&&!!this.models.text},
+  imgReady(){return this.ready()&&!!this.models.image},
+  async load(){const m=await DB.get("meta","ai");if(m?.value){this.key=m.value.key||null;this.models=m.value.models||{text:null,image:null}}},
+  async save(){await DB.put("meta",{key:"ai",value:{key:this.key,models:this.models}})},
+  async detect(key){const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}});
+    if(!r.ok){const e=new Error("key");e.status=r.status;throw e}
+    const ms=((await r.json()).models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent")).map(m=>m.name.replace(/^models\//,""));
+    const bad=/tts|audio|live|embed|native|learnlm|gemma|robotics|computer|deep-research|exp-/i;
+    const ver=n=>{const m=n.match(/gemini-(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):0};
+    const pick=a=>a.sort((x,y)=>(/preview/.test(x)-/preview/.test(y))||(ver(y)-ver(x))||(x.length-y.length))[0]||null;
+    const text=pick(ms.filter(n=>/gemini/.test(n)&&/flash-lite/.test(n)&&!/image/.test(n)&&!bad.test(n)))||pick(ms.filter(n=>/gemini/.test(n)&&/flash/.test(n)&&!/image/.test(n)&&!bad.test(n)));
+    const image=pick(ms.filter(n=>/gemini/.test(n)&&/image/.test(n)&&/flash/.test(n)&&!bad.test(n)))||pick(ms.filter(n=>/gemini/.test(n)&&/image/.test(n)&&!bad.test(n)));
+    return {text,image}},
+  async call(model,parts,{json=false,image=false}={}){const body={contents:[{role:"user",parts}],generationConfig:{}};
+    if(json)body.generationConfig.responseMimeType="application/json";if(image)body.generationConfig.responseModalities=["TEXT","IMAGE"];
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":this.key},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j?.error?.message||"");e.status=r.status;throw e}
+    const ps=j.candidates?.[0]?.content?.parts||[];
+    return {text:ps.filter(x=>x.text).map(x=>x.text).join(""),images:ps.map(x=>x.inlineData||x.inline_data).filter(Boolean),reason:j.promptFeedback?.blockReason||j.candidates?.[0]?.finishReason||""}}
+};
+function aiErr(e){const s=e?.status;if(s===429)return "利用の上限に達しました。少し待つか、有料枠（請求先の設定）を確認してください";if(s===400||s===401||s===403)return "APIキーが使えませんでした。設定でキーを確認してください";if(e?.message==="parse")return "AIの返事を読み取れませんでした。もう一度お試しください";return "AIにつなげませんでした。通信状態を確認してください"}
+function parseJSON(t){try{return JSON.parse(String(t).replace(/^```(?:json)?\s*|\s*```$/g,""))}catch(e){const m=String(t).match(/\{[\s\S]*\}/);if(m){try{return JSON.parse(m[0])}catch(e2){}}throw new Error("parse")}}
+async function b64(blob){const u=new Uint8Array(await blob.arrayBuffer());let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
+async function imgPart(blob,max=1024){const small=await processImage(blob,max,.85);return {inline_data:{mime_type:"image/jpeg",data:await b64(small)}}}
+async function blobOf(id){const r=await DB.get("blobs",id);return r?new Blob([r.buf],{type:r.type}):null}
+function b64ToBlob(d){const bin=atob(d.data);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:d.mimeType||d.mime_type||"image/png"})}
+function aiAsk({title,sends,opt,cost}){return new Promise(res=>{
+  const w=openSheet({title,body:`<p style="margin:0 0 6px;font-weight:700">送るもの</p><ul class="note" style="margin:0 0 12px;padding-left:18px">${sends.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+   ${opt?`<label style="display:flex;gap:10px;align-items:center;margin-bottom:12px;font-size:14px"><input type="checkbox" id="ai-opt" style="width:20px;height:20px"> ${esc(opt)}</label>`:""}
+   <p class="note" style="margin:0 0 6px">送り先：Google（Gemini API）。あなたのAPIキーで送ります。作った人には届きません。</p>
+   ${cost?`<p class="note" style="margin:0 0 6px">費用の目安：${esc(cost)}</p>`:""}
+   <p class="note" style="margin:0">無料枠のキーでは、送った内容がGoogleのサービス改善に使われることがあります。</p>`,
+   foot:`<button class="btn" data-x="0">やめる</button><button class="btn primary" data-x="1">送信する</button>`});
+  w.addEventListener("click",e=>{const b=e.target.closest("[data-x]");if(!b)return;const o=!!$("#ai-opt",w)?.checked;closeSheet();res({ok:b.dataset.x==="1",opt:o})})})}
+function aiPanel(){if(!AI.usable())return `<div class="panel"><h2>AI（Gemini）</h2><p class="note" style="margin:0">AI機能は https://yypupu.github.io/my-closet/ で使えます。</p></div>`;
+  return `<div class="panel"><h2>AI（Gemini）</h2>
+  ${AI.key?`<p style="margin:0 0 6px;font-size:14px"><span class="st ok">接続済み</span> あなたのAPIキーで使います</p>
+   <p class="note" style="margin:0 0 10px">読み取り・提案：${esc(AI.models.text||"使えるモデルなし")}<br>画像試着：${esc(AI.models.image||"使えるモデルなし")}</p>
+   <div class="row"><button class="btn sm" data-act="aiTest">接続を確認</button><button class="btn sm danger" data-act="aiDelKey">キーを削除</button></div>`
+  :`<p class="note" style="margin:0 0 10px">タグやサイズ表の読み取り、似合う服やコーデの提案、画像試着ができます。使う人それぞれのGemini APIキーを入れる方式です（キーはこの端末の中だけに保存し、バックアップにも含めません）。</p>
+   <ol class="note" style="margin:0 0 12px;padding-left:18px"><li><a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> を開いてGoogleでログイン</li><li>「APIキーを作成」を押してキーをコピー</li><li>下に貼って「保存」</li></ol>
+   <div class="field"><label for="ai-key">APIキー</label><input class="inp" id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></div>
+   <button class="btn primary block" data-act="aiSaveKey">保存</button>`}
+  <details class="help" style="margin:12px 0 0"><summary>送るもの・費用・注意</summary><ul>
+   <li>送信は、ボタンを押して内容を確認したときだけです。送り先はGoogle（Gemini API）で、作った人には届きません。</li>
+   <li>AIを使わなくても、登録・検索・コーデ・寸法の比較・一般的な提案はすべて無料で使えます。</li>
+   <li>読み取り・提案は無料枠で使えます。ただし無料枠で送った内容はGoogleのサービス改善に使われることがあります。全身写真を送るなら有料枠（請求先アカウントの設定）がおすすめです。</li>
+   <li>画像試着は無料枠がなく、有料枠が必要です。目安は1枚あたり約5〜10円（3パターンで約15〜30円）。読み取り・提案は1回1円未満が目安です（Googleの料金表2026年10月時点。変わることがあります）。</li>
+  </ul></details></div>`}
+const READ_KEYS={tops:"shoulder=肩幅, bodyWidth=身幅またはバスト, length=着丈, sleeve=袖丈",outer:"shoulder=肩幅, bodyWidth=身幅またはバスト, length=着丈, sleeve=袖丈",onepiece:"shoulder=肩幅, bodyWidth=身幅またはバスト, waistG=ウエスト, length=着丈, sleeve=袖丈",pants:"waistG=ウエスト, hipG=ヒップ, rise=股上, inseamG=股下, thighW=わたり（太もも）幅, hemW=裾幅",skirt:"waistG=ウエスト, hipG=ヒップ, skirtLen=スカート丈",shoes:"footLen=サイズ（足の長さcm）, heel=ヒールの高さ",bag:"bagW=幅, bagH=高さ, bagD=マチ",acc:"なし"};
+function readPrompt(d){return `あなたは服の登録を手伝うアシスタントです。添付画像は、服の写真・タグ・素材表示・通販サイトのサイズ表のスクリーンショットのいずれかです。
+画像に写っている、または書かれている情報だけを読み取り、次のJSONだけを返してください。
+重要：服の見た目から長さや幅を推測してはいけません。寸法はサイズ表やタグに数字で書かれているものだけを、cmで返してください。読み取れない項目は null にします。
+{
+ "category": "tops|outer|onepiece|pants|skirt|shoes|bag|acc" または null,
+ "name": "短い日本語の名前（例：白のオックスフォードシャツ）" または null,
+ "color": ${JSON.stringify(COLORS.map(c=>c[0]))} のどれか または null,
+ "brand": 文字列 または null,
+ "sizeLabel": "タグなどに書かれたサイズ表記" または null,
+ "material": "素材表示（例：綿100%）" または null,
+ "stretch": "none|some|high"（素材表示やタグから判断できる場合のみ） または null,
+ "sizeTable": [{"label":"S/M/Lなど","values":{"項目キー":{"v":数値,"mode":"flat（平置きの幅）|round（一周）"}}}] または [],
+ "notes": "その他タグに書かれた大事な情報" または null
+}
+項目キー（カテゴリごと）：トップス/アウター: ${READ_KEYS.tops} ／ ワンピース: ${READ_KEYS.onepiece} ／ パンツ: ${READ_KEYS.pants} ／ スカート: ${READ_KEYS.skirt} ／ 靴: ${READ_KEYS.shoes} ／ バッグ: ${READ_KEYS.bag}
+サイズ表で「バスト」「ウエスト」「ヒップ」が一周の値なら mode は round、「身幅」など平置きの幅なら flat にしてください。
+いま選ばれているカテゴリ：${d.category}`}
+async function aiReadIntoDraft(d,btn){const photos=d.photos.slice(0,4);if(!photos.length){toast("先に写真を追加してください");return}
+  const a=await aiAsk({title:"AIで読み取る",sends:[`この服の写真 ${photos.length}枚（縮小して送ります）`,"いま選んでいるカテゴリ"],cost:"1円未満"});if(!a.ok)return;
+  btn.disabled=true;btn.textContent="読み取り中…";
+  try{const parts=[{text:readPrompt(d)}];for(const ph of photos){const bl=ph.existing?await blobOf(ph.id):ph.blob;if(bl)parts.push(await imgPart(bl,1400))}
+    const r=await AI.call(AI.models.text,parts,{json:true});applyRead(d,parseJSON(r.text))}
+  catch(e){toast(aiErr(e))}}
+function applyRead(d,j){const f=[];const isNew=!d.id;
+  if(j.category&&CAT[j.category]&&isNew&&!d.name&&j.category!==d.category){d.category=j.category;f.push("カテゴリ")}
+  if(j.name&&!d.name){d.name=String(j.name).slice(0,60);f.push("名前")}
+  if(j.color&&COLORHEX[j.color]&&!d.color){d.color=j.color;f.push("色")}
+  if(j.brand&&!d.brand){d.brand=String(j.brand).slice(0,40);f.push("ブランド")}
+  if(j.sizeLabel&&d.kind==="closet"&&!d.size){d.size=String(j.sizeLabel).slice(0,20);f.push("サイズ表記")}
+  if(j.stretch&&j.stretch!=="none"&&STRETCH.some(x=>x[0]===j.stretch)&&d.stretch==="none"){d.stretch=j.stretch;f.push("素材の伸び")}
+  const add=t=>{if(t&&!(d.notes||"").includes(t)){d.notes=(d.notes?d.notes+"\n":"")+t;return true}};
+  if(j.material&&add(`素材：${j.material}`))f.push("メモ（素材）");if(j.notes&&add(String(j.notes).slice(0,200)))f.push("メモ");
+  const keys=CAT[d.category].f;
+  const rows=(Array.isArray(j.sizeTable)?j.sizeTable:[]).map(r=>({label:String(r?.label||"").slice(0,20),m:Object.fromEntries(Object.entries(r?.values||{}).filter(([k,v])=>keys.includes(k)&&toNum(v?.v)!=null&&toNum(v.v)>0&&toNum(v.v)<400).map(([k,v])=>[k,GF[k].t?{v:toNum(v.v),mode:v.mode==="round"?"round":"flat"}:{v:toNum(v.v)}]))})).filter(r=>Object.keys(r.m).length);
+  if(rows.length){if(d.kind==="wish"){const empty=d.rows.every(r=>!r.label&&!Object.values(r.m).some(e=>e?.v!=null));
+      if(empty){d.rows=rows;d.selRow=0}else rows.forEach(r=>{if(!d.rows.some(x=>x.label===r.label))d.rows.push(r)});
+      const want=d.wishSize||"";const i=d.rows.findIndex(r=>r.label&&r.label===want);if(i>=0)d.selRow=i;f.push(`サイズ表 ${rows.length}行`)}
+    else{const lab=d.size||j.sizeLabel;const r=rows.find(x=>x.label&&x.label===lab)||(rows.length===1?rows[0]:null);
+      if(r){const t=d.rows[0];let n=0;for(const[k,v] of Object.entries(r.m)){if(t.m[k]?.v==null){t.m[k]=v;n++}}if(!t.label)t.label=r.label;if(n)f.push(`寸法 ${n}項目（サイズ${r.label||""}の行）`)}
+      else f.push("サイズ表はありましたが、どのサイズか分からないため寸法は入れていません（サイズ表記を入れてもう一度どうぞ）")}}
+  d._ai=f.length?f:["読み取れる情報がありませんでした"]}
+/* 似合う提案 */
+function bodyText2(p){return BODY.map(x=>{const t=bodyText(p.body,x.k);return t?`${x.l}: ${t}cm`:null}).filter(Boolean).join(" / ")||"未入力"}
+function aiSuggestPanel(p){const a=p.aiSuggest;
+  return `<div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">AIの提案</h2><button class="btn sm primary" data-act="aiSuggest">${a?"もう一度聞く":"AIに聞く"}</button></div>
+   ${a?`<p class="note" style="margin:0 0 10px">${esc(new Date(a.at).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}))} ・ ${a.photo?"寸法・好み・正面写真から":"寸法と好みから"}</p>
+    ${(a.data.features||[]).length?`<div class="fit" style="margin-bottom:12px">${a.data.features.slice(0,6).map(x=>`<div class="fitrow"><span class="st info">特徴</span><div>${esc(x.text)}<small>${esc(x.reason||"")}</small></div></div>`).join("")}</div>`:""}
+    ${(a.data.suggestions||[]).slice(0,5).map(c=>`<div class="sugg"><h3>${esc(c.title)}</h3><dl><dt>シルエット</dt><dd>${esc(c.silhouette||"")}</dd><dt>丈・量感</dt><dd>${esc(c.balance||"")}</dd><dt>色・組み合わせ</dt><dd>${esc(c.colors||"")}</dd><dt>理由</dt><dd>${esc(c.reason||"")}</dd></dl></div>`).join("")}
+    ${a.data.skeletonHint&&a.data.skeletonHint.type?`<p class="note" style="margin:12px 0 0">参考：骨格タイプの傾向は「${esc(a.data.skeletonHint.type)}」${a.data.skeletonHint.note?`（${esc(a.data.skeletonHint.note)}）`:""}。寸法${a.photo?"と写真":""}からの推測で、確定診断ではありません。</p>`:""}
+    <p class="note" style="margin:10px 0 0">AIの提案は参考です。似合う・似合わないを決めるものではありません。</p>`
+   :`<p class="note" style="margin:0">寸法・好み・目的をもとに、AIがあなた向けの提案を作ります。正面の全身写真を一緒に送ることもできます（任意）。</p>`}</div>`}
+async function aiSuggest(){const p=prof();const hasPhoto=!!p.photos?.front;
+  const a=await aiAsk({title:"AIに似合う服を聞く",sends:["体の寸法（cm）と、寸法から分かる特徴","好きな色・テイスト・着心地・目的"],opt:hasPhoto?"正面の全身写真も送る（任意）":null,cost:"1円未満"});if(!a.ok)return;
+  const w=openSheet({title:"AIの提案",body:`<p class="note">考えています…（10〜30秒ほど）</p>`});
+  try{const {out,miss}=bodyFeatures(p.body||{});
+    const prompt=`あなたは、相手の体型と好みに寄り添うファッションアドバイザーです。見た目を否定したり、似合わないと断定したりしないでください。
+相手の情報：
+- 体の寸法：${bodyText2(p)}
+- 計算で分かる特徴：${out.map(x=>x.t+"（"+x.d+"）").join("、")||"なし"}${miss.length?`（不足：${miss.join("、")}）`:""}
+- 好きな色：${(p.colors||[]).join("、")||"未設定"} ／ テイスト：${(p.tastes||[]).join("、")||"未設定"} ／ 着心地：${(FITPREF.find(f=>f[0]===p.fitPref)||[])[1]||"未設定"} ／ 目的：${(p.goals||[]).join("、")||"未設定"}
+${a.opt?"添付の写真は本人の正面の全身写真です。写真から分かる範囲の特徴も参考にしてください（顔立ちや肌の評価はしないでください）。":""}
+次のJSONだけを日本語で返してください。データが足りないことは正直に書いてください。
+{"features":[{"text":"寸法や写真から説明できる体の特徴（中立的な言い方で）","reason":"根拠"}],
+ "suggestions":[{"title":"短い見出し","silhouette":"おすすめのシルエット","balance":"丈やボリュームのバランス","colors":"色や組み合わせ","reason":"本人の目的・好み・特徴に沿った理由"}],
+ "skeletonHint":{"type":"ストレート|ウェーブ|ナチュラル|判断できない","note":"短い補足。寸法だけでは確定できないことを前提に"}}
+suggestionsは3〜4件。`;
+    const parts=[{text:prompt}];if(a.opt&&hasPhoto){const bl=await blobOf(p.photos.front);if(bl)parts.push(await imgPart(bl,1024))}
+    const r=await AI.call(AI.models.text,parts,{json:true});const data=parseJSON(r.text);
+    p.aiSuggest={at:Date.now(),photo:!!a.opt,data:{features:Array.isArray(data.features)?data.features:[],suggestions:Array.isArray(data.suggestions)?data.suggestions:[],skeletonHint:data.skeletonHint||null}};
+    await saveProfile(p);closeSheet();S.tab="me";render();toast("AIの提案を保存しました")}
+  catch(e){setSheet(w,{body:`<p class="note">${esc(aiErr(e))}</p>`})}}
+/* コーデ提案 */
+async function aiCoord(baseId){const base=baseId?itemById(baseId):null;let purpose="普段";let req="";
+  const w0=openSheet({title:"AIにコーデを提案してもらう",body:`${base?`<p style="margin:0 0 10px">「${esc(base.name||CAT[base.category].l)}」を使ったコーデを考えます。</p>`:""}
+   <div class="field"><span class="lbl">用途</span><div class="chips wrap" style="margin:0">${PURPOSES.map(x=>`<button class="chip" data-pp="${x}" aria-pressed="${x===purpose}">${x}</button>`).join("")}</div></div>
+   <div class="field"><label for="ai-req">ひとこと（任意）</label><input class="inp" id="ai-req" maxlength="80" placeholder="例：週末の京都、歩きやすく"></div>`,
+   foot:`<button class="btn" data-act="closeSheet">やめる</button><button class="btn primary" data-go="1">次へ</button>`});
+  w0.addEventListener("click",async e=>{const pp=e.target.closest("[data-pp]");if(pp){purpose=pp.dataset.pp;$$("[data-pp]",w0).forEach(x=>x.setAttribute("aria-pressed",x.dataset.pp===purpose));return}
+    if(!e.target.closest("[data-go]"))return;req=$("#ai-req",w0).value.trim();closeSheet();
+    const list=S.items.slice(0,150);
+    const a=await aiAsk({title:"AIにコーデを提案してもらう",sends:[`登録した服 ${list.length}点の文字情報（カテゴリ・名前・色・ブランド・手持ちかほしい物か）`,"好きな色・テイスト・目的、選んだ用途とひとこと","写真は送りません"],cost:"1円未満"});if(!a.ok)return;
+    const w=openSheet({title:"AIのコーデ提案",body:`<p class="note">考えています…（10〜30秒ほど）</p>`});
+    try{const p=prof();const items=list.map(i=>({id:i.id,kind:i.kind==="wish"?"ほしい物":"手持ち",category:CAT[i.category]?.l,name:i.name||"",color:i.color||"",brand:i.brand||""}));
+      const prompt=`あなたはスタイリストです。次の服の一覧だけを使って、コーデを最大3つ提案してください。一覧にない服は使わないでください。手持ちの服を中心にし、ほしい物は合わせると良い場合だけ入れてください。
+用途：${purpose}${req?` ／ 本人のひとこと：${req}`:""}${base?` ／ 必ず使う服のid：${base.id}`:""}
+好きな色：${(p.colors||[]).join("、")||"未設定"} ／ テイスト：${(p.tastes||[]).join("、")||"未設定"} ／ 目的：${(p.goals||[]).join("、")||"未設定"}
+服の一覧(JSON)：${JSON.stringify(items)}
+次のJSONだけを返してください：{"outfits":[{"name":"短い名前","itemIds":["id",...],"reason":"組み合わせの理由（色・形・用途）"}]}`;
+      const r=await AI.call(AI.models.text,[{text:prompt}],{json:true});const data=parseJSON(r.text);
+      const outs=(data.outfits||[]).map(o=>({name:String(o.name||"").slice(0,40),reason:String(o.reason||""),ids:[...new Set((o.itemIds||[]).filter(id=>itemById(id)))]})).filter(o=>o.ids.length>=2).slice(0,3);
+      if(!outs.length){setSheet(w,{body:`<p class="note">組み合わせを作れませんでした。服を増やすか、もう一度お試しください。</p>`});return}
+      setSheet(w,{body:outs.map((o,i)=>`<div class="panel"><h3 style="margin:0 0 8px">${esc(o.name||"コーデ "+(i+1))}</h3><div class="its" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${o.ids.map(id=>{const it=itemById(id);return `<div class="mini">${it.photoIds?.[0]?`<img data-blob="${it.photoIds[0]}" alt="${esc(it.name)}">`:""}${it.kind==="wish"?'<span class="w">ほしい</span>':""}</div>`}).join("")}</div>
+        <p class="note" style="margin:0 0 6px">${esc(o.ids.map(id=>itemById(id).name||CAT[itemById(id).category].l).join(" ＋ "))}</p><p style="margin:0 0 10px;font-size:13.5px">${esc(o.reason)}</p>
+        <button class="btn sm primary" data-save-o="${i}">このコーデを保存</button></div>`).join("")+`<p class="note">AIの提案は参考です。保存する前に入れ替えもできます。</p>`});
+      w.addEventListener("click",ev=>{const b=ev.target.closest("[data-save-o]");if(!b)return;const o=outs[+b.dataset.saveO];while(sheets.length)closeSheet();outfitEditor(null,o.ids,{name:o.name,purpose,notes:"AIの提案："+o.reason})})}
+    catch(err){setSheet(w,{body:`<p class="note">${esc(aiErr(err))}</p>`})}})}
+/* 画像試着 */
+const TRY_VAR=["服の形や着こなしは写真のまま、自然に着ている様子","着こなしを少し変えた様子（前を開ける、袖を少しまくる、タックインするなど服に合う範囲で）","同じ服を、少し斜めを向いた自然な立ち姿で"];
+function tryAIPanel(it,phId){const n=S.tryN||2;const can=it&&phId&&it.photoIds?.length;
+  return `<div class="panel"><h2>AIで着せ替え画像を作る</h2>
+   <div class="chips" style="margin-bottom:10px">${[2,3].map(k=>`<button class="chip" data-act="tryN" data-v="${k}" aria-pressed="${n===k}">${k}パターン</button>`).join("")}</div>
+   <button class="btn primary block" data-act="aiTry" ${can?"":"disabled"}>${can?`${n}パターン作る（約${n*5}〜${n*10}円）`:(!phId?"全身写真を登録してください":!it?"服を選んでください":"写真のある服を選んでください")}</button>
+   <ul class="note" style="margin:10px 0 0;padding-left:18px"><li>画像で自然に見えることと、実際にサイズが合うことは別です。丈・着心地・締め付けの保証にはなりません。</li><li>登録した寸法（cm）は画像に反映されません。サイズは下の「寸法上のフィット」で確認してください。</li><li>顔・体形・服の色柄やロゴが変わることがあります。</li></ul></div>`}
+function savedTryHTML(){const p=prof();const t=(p.tryons||[]).slice().reverse();if(!t.length)return "";
+  return `<div class="panel"><h2>保存した試着画像</h2><div class="pick">${t.map(x=>{const it=itemById(x.itemId);return `<div class="card"><div class="ph" style="aspect-ratio:3/4"><img data-blob="${x.blobId}" alt="試着画像"><span class="badge">AI</span></div><div class="cmeta"><span>${esc(it?.name||"削除された服")}</span><button class="link" style="font-size:12px;justify-self:start" data-act="delTryon" data-id="${x.id}">削除</button></div></div>`}).join("")}</div>
+   <p class="note" style="margin:10px 0 0">AIが作った参考画像です。サイズの保証ではありません。</p></div>`}
+async function aiTry(){const p=prof();const it=itemById(S.tryItem);const phId=p.photos?.[S.tryPhoto];if(!it||!phId)return;const n=S.tryN||2;
+  const label={front:"正面",side:"横",back:"後ろ"}[S.tryPhoto];
+  const a=await aiAsk({title:"AIで着せ替え画像を作る",sends:[`全身写真（${label}）1枚`,`服の写真1枚（${it.name||CAT[it.category].l}）`],cost:`${n}枚で約${n*5}〜${n*10}円（画像生成は無料枠がなく、有料枠が必要です）`});if(!a.ok)return;
+  const w=openSheet({title:"AIの着せ替え",body:`<p class="note" id="try-st">準備しています…</p>`});
+  const res=[];let err=null;
+  try{const person=await imgPart(await blobOf(phId),1024);const garment=await imgPart(await blobOf(it.photoIds?.[0])||new Blob(),1024);
+    for(let i=0;i<n;i++){const st=$("#try-st",w);if(st)st.textContent=`${i+1} / ${n} 枚目を作っています…（1枚20〜40秒ほど）`;
+      try{const r=await AI.call(AI.models.image,[{text:`1枚目の人物が、2枚目の服を着ている写真を1枚作ってください。人物の顔・髪型・体形・ポーズ・背景はできるだけ1枚目のままにしてください。服の色・柄・ロゴ・形はできるだけ2枚目の通りにしてください。様子：${TRY_VAR[i]}。`},person,garment],{image:true});
+        if(r.images[0])res.push({i,blob:b64ToBlob(r.images[0])});else err=err||{msg:"画像が作られませんでした（内容によっては作れないことがあります）"}}
+      catch(e){err={msg:aiErr(e),status:e.status};if(e.status===429||e.status===400||e.status===403)break}}}
+  catch(e){err={msg:"写真を準備できませんでした"}}
+  if(!res.length){setSheet(w,{body:`<p class="note">${esc(err?.msg||"画像を作れませんでした")}</p>${err?.status===429?`<p class="note">画像生成は無料枠では使えません。Google AI Studioで請求先（有料枠）を設定してください。</p>`:""}`});return}
+  const urls=res.map(r=>URL.createObjectURL(r.blob));
+  setSheet(w,{body:`<p class="note" style="margin:0 0 10px">AIが作った参考画像です。サイズや着心地の保証ではありません。${err?"一部の画像は作れませんでした。":""}</p>
+   <div style="display:grid;grid-template-columns:repeat(${Math.min(res.length,2)},minmax(0,1fr));gap:10px">${res.map((r,k)=>`<div style="display:grid;gap:6px"><div class="ph" style="aspect-ratio:3/4"><img src="${urls[k]}" alt="パターン${"ABC"[r.i]}"></div><span class="note">パターン${"ABC"[r.i]}</span><button class="btn sm" data-keep="${k}">保存</button></div>`).join("")}</div>`});
+  w.addEventListener("click",async e=>{const b=e.target.closest("[data-keep]");if(!b||b.disabled)return;b.disabled=true;const r=res[+b.dataset.keep];
+    const bid=await saveBlob(r.blob,p.id);p.tryons=p.tryons||[];p.tryons.push({id:"t_"+uid(),itemId:it.id,blobId:bid,pattern:"ABC"[r.i],photo:S.tryPhoto,createdAt:Date.now()});await saveProfile(p);b.textContent="保存しました";render()})}
+
 /* ===== 操作 ===== */
 const ACT={
   tab:b=>{S.tab=b.dataset.tab;try{localStorage.setItem("mc-tab",S.tab)}catch(e){}while(sheets.length)closeSheet();render();scrollTo(0,0)},
@@ -1241,6 +1424,14 @@ const ACT={
   about:()=>openSheet({title:"このアプリについて",body:aboutHTML()}),
   createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render()},
   sample:()=>createSample(),
+  aiSaveKey:async b=>{const v=($("#ai-key")?.value||"").trim();if(!v){toast("APIキーを貼ってください");return}b.disabled=true;b.textContent="確認しています…";
+    try{const m=await AI.detect(v);if(!m.text){toast("このキーで使えるモデルが見つかりませんでした");return}AI.key=v;AI.models=m;await AI.save();while(sheets.length)closeSheet();render();settingsSheet();toast("AIを使えるようになりました")}
+    catch(e){toast(e.status?"APIキーが使えませんでした。コピーし直してください":"Googleにつなげませんでした")}finally{b.disabled=false;b.textContent="保存"}},
+  aiTest:async()=>{try{const m=await AI.detect(AI.key);AI.models=m;await AI.save();toast("接続できています");while(sheets.length)closeSheet();settingsSheet()}catch(e){toast(e.status?"APIキーが使えなくなっています":"Googleにつなげませんでした")}},
+  aiDelKey:async()=>{if(!await confirmDialog({title:"APIキーを削除しますか？",body:"この端末からキーを消します。AIの機能は使えなくなります。",ok:"削除",danger:true}))return;AI.key=null;AI.models={text:null,image:null};await DB.del("meta","ai");while(sheets.length)closeSheet();render();toast("キーを削除しました")},
+  aiSuggest:()=>aiSuggest(), aiCoord:b=>aiCoord(b.dataset.base||null), aiTry:()=>aiTry(),
+  tryN:b=>{S.tryN=+b.dataset.v;render()},
+  delTryon:async b=>{const p=prof();const t=(p.tryons||[]).find(x=>x.id===b.dataset.id);if(!t)return;if(!await confirmDialog({title:"この画像を削除しますか？",ok:"削除",danger:true}))return;await deleteBlobs([t.blobId]);p.tryons=p.tryons.filter(x=>x.id!==t.id);await saveProfile(p);render()},
   setStyle:b=>{applyStyle(b.dataset.v);render();$$(".sty").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===b.dataset.v))},
   cat:b=>{S.cat=b.dataset.v;$("#closet-chips").innerHTML=catChips(S.items.filter(i=>i.kind==="closet"),S.cat,"cat");$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))},
   wcat:b=>{S.wcat=b.dataset.v;render()}, wsort:b=>{S.wsort=b.dataset.v;render()}, ofilter:b=>{S.ofilter=b.dataset.v;render()},
