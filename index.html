@@ -621,23 +621,30 @@ function viewWelcome(){return `<section class="hello">
   <p class="mark">My<br>Closet</p>
   <p class="tag">手持ちの服と、ほしい服と、自分のサイズを、ひとつの場所に。</p>
   <div class="panel">
-    <h2>はじめに</h2>
+    <h2>はじめて使う</h2>
+    <div class="field"><label for="w-name">プロフィールの名前</label><input class="inp" id="w-name" maxlength="20" placeholder="例：自分の名前やニックネーム"></div>
+    <button class="btn primary block" data-act="createFirst">はじめる</button>
+  </div>
+  <div class="panel">
+    <h2>前に使ったことがある</h2>
+    <p style="margin:0 0 10px;font-size:14px">このアプリにはログインがないため、<b>同じ名前を入れても前のデータは出てきません</b>。保存しておいたバックアップから戻してください。</p>
+    <div style="display:grid;gap:10px">
+      ${DRIVE.available()?`<button class="btn primary block" data-act="driveRestore">Googleドライブから戻す</button>`:""}
+      <label class="btn block filebtn">バックアップファイルから戻す<input type="file" accept=".zip,application/zip" data-restore="1"></label>
+    </div>
+    <p class="note" style="margin:12px 0 0">iPhoneでは「ホーム画面のアイコン」「Safari」「LINEなどのアプリの中」で開いた場合、それぞれ保存場所が別になります。前と同じ開き方で開くと、データがそのまま残っています。</p>
+  </div>
+  ${iosTip()}
+  <div class="panel">
+    <h2>データについて</h2>
     <ul class="note" style="margin:0;padding-left:18px;display:grid;gap:4px">
-      <li>写真・寸法・服の情報は<b>この端末のブラウザの中だけ</b>に保存されます。運営者のサーバーには送られません。</li>
-      <li>ほかの端末とは<b>自動で同期されません</b>。スマホとPCで使う場合は、バックアップを書き出して読み込んでください。</li>
-      <li>ブラウザのデータ削除や容量不足で<b>消える可能性</b>があります。画面に出る「いま保存する」や、設定の「Googleドライブ自動バックアップ」で保存しておけば元に戻せます。</li>
+      <li>写真・寸法・服の情報は<b>このスマホの中だけ</b>に保存されます。作った人のサーバーには送られません。</li>
+      <li>ほかの端末とは自動で同期されません。</li>
+      <li>ブラウザのデータを消すと消えてしまうため、<b>Googleドライブ自動保存</b>をおすすめしています（はじめた後に案内します）。</li>
       <li>ログイン・メール登録・アクセス解析・広告はありません。</li>
     </ul>
   </div>
-  <div class="panel">
-    <div class="field"><label for="w-name">最初のプロフィールの名前</label><input class="inp" id="w-name" maxlength="20" placeholder="例：自分の名前やニックネーム"></div>
-    <button class="btn primary block" data-act="createFirst">プロフィールを作ってはじめる</button>
-  </div>
   <div class="panel"><h2>デザインを選ぶ（あとで設定から変えられます）</h2>${stylePicker()}</div>
-  <div class="panel"><h2>前に使っていた方へ</h2><p class="note" style="margin:0 0 12px">データが消えてしまったときや、別のスマホから移るときは、バックアップから元に戻せます。</p>
-   <div class="row"><label class="btn grow filebtn">バックアップファイルから復元<input type="file" accept=".zip,application/zip" data-restore="1"></label>
-   ${DRIVE.available()?`<button class="btn grow" data-act="driveRestore">Googleドライブから復元</button>`:""}</div></div>
-  ${iosTip()}
   <p class="note" style="text-align:center">操作を試したい場合は <button class="link" data-act="sample">架空のサンプルデータで試す</button><br>（実在の人物・私物ではありません。あとから削除できます）</p>
 </section>`}
 
@@ -1435,7 +1442,8 @@ const ACT={
   closeSheet:()=>closeSheet(),
   settings:()=>settingsSheet(), profiles:()=>profilesSheet(),
   about:()=>openSheet({title:"このアプリについて",body:aboutHTML()}),
-  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render()},
+  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render();
+    if(DRIVE.available()&&!S.bk.drive.enabled){const w=openSheet({title:"消えても戻せるようにしませんか？",body:`<p style="margin:0 0 10px">データはこのスマホの中だけにあるため、ブラウザのデータを消したり機種変更したりすると消えてしまいます。</p><p style="margin:0 0 14px"><b>Googleドライブ自動保存</b>をオンにすると、変更のたびにあなたのGoogleドライブへ保存され、別のスマホや開き方でも「Googleドライブから戻す」で元通りにできます。</p><p class="note" style="margin:0">保存先はあなた自身のGoogleドライブだけです。作った人には届きません。</p>`,foot:`<button class="btn" data-act="closeSheet">あとで</button><button class="btn primary" data-act="driveSetup">オンにする</button>`})}},
   sample:()=>createSample(),
   aiSaveKey:async b=>{const v=($("#ai-key")?.value||"").trim();if(!v){toast("APIキーを貼ってください");return}b.disabled=true;b.textContent="確認しています…";
     try{const m=await AI.detect(v);if(!m.text){toast("このキーで使えるモデルが見つかりませんでした");return}AI.key=v;AI.models=m;await AI.save();while(sheets.length)closeSheet();render();settingsSheet();toast("AIを使えるようになりました")}
