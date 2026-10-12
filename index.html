@@ -330,12 +330,14 @@ table.t tr.sel td{background:var(--accent-soft)}
 .modal{background:var(--surface);border-radius:var(--r);max-width:400px;width:100%;padding:20px}
 .modal h2{font-size:17px;margin:0 0 8px}
 .modal p{margin:0 0 16px;font-size:14px;color:var(--muted);white-space:pre-line}
-.toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:90;max-width:calc(100% - 32px);text-align:center}
+.toast{pointer-events:none;position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:90;max-width:calc(100% - 32px);text-align:center}
 /* photos strip */
 .strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px 14px;padding:0 16px}
 .strip .ph{flex:0 0 78%;scroll-snap-align:center}
 .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .thumb{position:relative;width:76px;height:95px;border-radius:var(--r-sm);overflow:hidden;background:var(--photo)}
+.thumbs.big .thumb:first-child{width:150px;height:188px}
+.sheet-f{flex-wrap:wrap}.sheet-f .btn{flex:1 1 auto;min-width:0;padding-left:12px;padding-right:12px}
 .thumb img{width:100%;height:100%;object-fit:cover}
 .thumb .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:13px;line-height:22px;text-align:center}
 .filebtn{position:relative;overflow:hidden}
@@ -444,7 +446,7 @@ const CONFIG = {
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
   googleClientId: "605902820361-6a6tnohfop355db503aaa2m5frlavlun.apps.googleusercontent.com", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
-  version: "0.4.0（見本の服・手で重ねる）"
+  version: "0.5.0（かんたん登録・すぐ着せる）"
 };
 
 /* ===== デザインパターン ===== */
@@ -673,8 +675,9 @@ function viewCloset(){const all=S.items.filter(i=>i.kind==="closet");
   return `<div class="vh"><h1>${hd("Closet","Myクローゼット","きょうの<br>クローゼット")}</h1><span class="sub num">${all.length}点<span class="sfx">あるよ！</span></span></div>
   ${all.length?`<div class="search">${ICON.search}<input class="inp" id="closet-q" type="search" placeholder="名前・ブランド・色・メモで探す" value="${esc(S.q)}" aria-label="クローゼットを検索"></div>
   <div class="chips" id="closet-chips">${catChips(all,S.cat,"cat")}</div><div id="closet-grid">${closetGrid()}</div>`
-  :`<div class="empty-state"><h2>まだ服がありません</h2><p>服・靴・バッグ・小物を写真で登録しましょう。ハンガーに掛けるか平置きして、正面から撮るときれいに並びます。</p><button class="btn primary" data-act="newItem" data-kind="closet">${ICON.plus}最初の1着を登録</button></div>`}
-  ${all.length?`<button class="btn dark fab" data-act="newItem" data-kind="closet">${ICON.plus}服を追加</button>`:""}`}
+  :`<div class="empty-state"><h2>まだ服がありません</h2><p>服・靴・バッグ・小物を写真で登録しましょう。ハンガーに掛けるか平置きして、正面から撮るときれいに並びます。</p>${addBtn("closet","最初の1着を撮る","btn primary")}<p style="margin:12px 0 0"><button class="link" data-act="newItem" data-kind="closet">写真なしで登録</button></p></div>`}
+  ${all.length?addBtn("closet","服を追加","btn dark fab"):""}`}
+function addBtn(kind,label,cls){return `<label class="${cls} filebtn" role="button">${ICON.plus}${label}<input type="file" accept="image/*" data-quick="${kind}" aria-label="${esc(label)}（写真を撮る・選ぶ）"></label>`}
 function catChips(list,cur,act){const cnt=k=>list.filter(i=>i.category===k).length;
   return `<button class="chip" data-act="${act}" data-v="all" aria-pressed="${cur==="all"}">すべて <span class="c">${list.length}</span></button>`+
     CATS.filter(c=>cnt(c.k)).map(c=>`<button class="chip" data-act="${act}" data-v="${c.k}" aria-pressed="${cur===c.k}">${c.l} <span class="c">${cnt(c.k)}</span></button>`).join("")}
@@ -691,37 +694,32 @@ function viewWish(){const all=S.items.filter(i=>i.kind==="wish");
   <div class="row" style="margin:-4px 0 14px;font-size:12.5px;color:var(--muted)">並び順
    ${[["want","欲しい度"],["new","新しい順"],["price","価格が安い順"]].map(([k,l])=>`<button class="chip" data-act="wsort" data-v="${k}" aria-pressed="${S.wsort===k}">${l}</button>`).join("")}</div>
   <div class="grid wishgrid">${list.map(i=>itemCard(i)).join("")}</div>
-  <button class="btn dark fab" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button>`
-  :`<div class="empty-state"><h2>ほしい物はまだありません</h2><p>気になる服を、商品画像やサイズ表のスクリーンショット、商品URL、価格と一緒に保存できます。手持ちの服とのコーデや、サイズの比較にも使えます。</p><button class="btn primary" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button><div style="margin-top:12px"><button class="btn" data-act="demoCatalog">流行りの見本の服から選ぶ</button></div></div>`}`}
+  ${addBtn("wish","ほしい物を追加","btn dark fab")}`
+  :`<div class="empty-state"><h2>ほしい物はまだありません</h2><p>気になる服を、商品画像やサイズ表のスクリーンショット、商品URL、価格と一緒に保存できます。手持ちの服とのコーデや、サイズの比較にも使えます。</p>${addBtn("wish","ほしい物を追加","btn primary")}<p style="margin:12px 0 0"><button class="link" data-act="newItem" data-kind="wish">写真なしで登録</button></p><div style="margin-top:12px"><button class="btn" data-act="demoCatalog">流行りの見本の服から選ぶ</button></div></div>`}`}
 
 /* ---- 3. 着せ替え ---- */
-function viewTry(){const p=prof();const items=S.items.slice().sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1)||b.createdAt-a.createdAt);
-  const it=itemById(S.tryItem);const phId=p.photos?.[S.tryPhoto];
+function viewTry(){const p=prof();const items=S.items.filter(i=>i.photoIds?.length).sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1)||b.createdAt-a.createdAt);
+  const it=itemById(S.tryItem);if(!p.photos?.[S.tryPhoto]){const k=["front","side","back"].find(k=>p.photos?.[k]);if(k)S.tryPhoto=k}const phId=p.photos?.[S.tryPhoto];
+  const nPh=["front","side","back"].filter(k=>p.photos?.[k]).length;
   return `<div class="vh"><h1>${hd("Fitting","着せ替え","きせかえ")}</h1></div>
-  ${AI.imgReady()?"":`<div class="notice warn"><b>AIによる画像試着は、まだ使えません</b>${AI.ready()?"このAPIキーでは画像を作るモデルが使えません。":"設定の「AI（Gemini）」でAPIキーを入れると使えます。"}下で全身写真と服を並べて見比べたり、寸法の相性を確認できます。</div>`}
-  <div class="panel"><h2>全身写真</h2>
-    <div class="chips" style="margin-bottom:0">${[["front","正面"],["side","横"],["back","後ろ"]].map(([k,l])=>`<button class="chip" data-act="tryPhoto" data-v="${k}" aria-pressed="${S.tryPhoto===k}">${l}${p.photos?.[k]?"":"（未登録）"}</button>`).join("")}</div></div>
-  <div class="panel"><h2>服を選ぶ</h2>
-   ${items.length?`<div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 96px" data-act="tryPick" data-id="${i.id}" aria-pressed="${S.tryItem===i.id}"><div class="ph" style="${S.tryItem===i.id?"outline:3px solid var(--accent);outline-offset:-3px":""}">${i.photoIds?.[0]?`<img data-blob="${i.photoIds[0]}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category]?.l)}</span></div></button>`).join("")}</div>`:`<p class="note">クローゼットかほしい物に服を登録すると、ここで選べます。</p>`}
+  <div class="panel"><h2>自分に着せる</h2>
+   <div class="row" style="align-items:flex-start;gap:14px;flex-wrap:nowrap">
+    <div class="ph" style="flex:0 0 96px;aspect-ratio:3/5">${phId?`<img data-blob="${phId}" alt="全身写真">`:`<div class="empty" style="font-size:12px;text-align:center">全身写真<br>まだ</div>`}</div>
+    <div style="flex:1;min-width:0"><p class="note" style="margin:0 0 10px">${phId?"この写真に服を重ねます。身長と服の丈から大きさを自動で合わせます。":"まず自分の全身写真を1枚。あとは服をタップするだけ。"}</p>
+     <button class="btn primary block" data-act="manualTry">${ICON.person}${phId?"服を着せる":"全身写真を入れて始める"}</button>
+     ${phId?`<label class="btn sm filebtn" style="margin-top:8px">写真を変える<input type="file" accept="image/*" data-bodyphoto="${S.tryPhoto}"></label>`:""}</div></div>
+   ${nPh>1?`<div class="chips" style="margin:12px 0 0">${[["front","正面"],["side","横"],["back","後ろ"]].filter(([k])=>p.photos?.[k]).map(([k,l])=>`<button class="chip" data-act="tryPhoto" data-v="${k}" aria-pressed="${S.tryPhoto===k}">${l}</button>`).join("")}</div>`:""}
+   <p class="note" style="margin:10px 0 0">AIなし・無料。写真はどこにも送りません。</p></div>
+  <div class="panel"><h2>服をタップ → すぐ着せる</h2>
+   ${items.length?`<div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 96px" data-act="tryPick" data-id="${i.id}"><div class="ph"><img data-blob="${i.photoIds[0]}" alt="">${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category]?.l)}</span></div></button>`).join("")}</div>`
+     :`<p class="note" style="margin:0 0 10px">写真つきの服がまだありません。</p><div class="row">${addBtn("closet","服を撮って追加","btn sm primary")}<button class="btn sm" data-act="demoCatalog">見本の服を使う</button></div>`}
   </div>
-  ${it||phId?`<div class="side2" style="margin-bottom:6px">
-    <div class="ph" style="aspect-ratio:3/5">${phId?`<img data-blob="${phId}" alt="全身写真">`:`<div class="empty" style="text-align:center;padding:10px">全身写真が未登録です<br><button class="link" data-act="tab" data-tab="me">Myサイズで登録</button></div>`}</div>
-    <div class="ph" style="aspect-ratio:3/5">${it?.photoIds?.[0]?`<img data-blob="${it.photoIds[0]}" alt="服" style="object-fit:contain;background:var(--surface)">`:`<div class="empty">服を選んでください</div>`}</div></div>
-    <p class="note" style="margin:0 0 14px">並べて表示しています（合成画像ではありません）</p>`:""}
-  <div class="panel"><h2>手で重ねる（AIなし・無料）</h2><p class="note" style="margin:0 0 10px">全身写真に服の写真を重ねて、組み合わせや丈を見られます。身長と服の着丈から大きさを自動で合わせます。送信はしません。</p>
-   <button class="btn primary block" data-act="manualTry" ${phId?"":"disabled"}>${phId?"手で重ねてみる":"全身写真を登録してください"}</button></div>
-  ${AI.imgReady()?tryAIPanel(it,phId):""}
-  ${it?`<div class="panel"><h2>${esc(it.name||CAT[it.category]?.l)} の相性</h2>${fitPanel(it)}</div>`:""}
+  ${AI.imgReady()&&it&&phId?tryAIPanel(it,phId):""}
+  ${it?`<details class="help"><summary>${esc(it.name||CAT[it.category]?.l)} のサイズの相性を見る</summary>${fitPanel(it)}</details>`:""}
   ${savedTryHTML()}
   ${AI.imgReady()?"":aiTryInfo()}`}
-function aiTryInfo(){return `<details class="help"><summary>AIで画像試着を使えるようになったら</summary>
-  <ul>
-   <li>全身写真と服の画像をもとに、着用イメージを2〜3パターン作って並べ、気に入ったものを保存できるようにする予定です。</li>
-   <li>実行ボタンを押したときだけ、<b>選んだ全身写真1枚と服の画像</b>をAIの会社へ送ります。送る前に、何をどこへ送るかを毎回表示します。</li>
-   <li>画像で自然に見えることと、実際にサイズが合うことは別です。生成画像は丈・着心地・締め付けを保証しません。顔・体形・服の色柄やロゴが変わることもあります。</li>
-   <li>画像生成AIの多くは、登録した寸法（cm）を画像に正確に反映できません。サイズの判断は、この画面の「寸法上のフィット」を使ってください。</li>
-   <li>費用：AIの利用料がかかります（使う人が自分のAIのキーを入れる方式を予定）。AIを使わない場合は、今の機能がすべて無料で使えます。</li>
-  </ul></details>`}
+function aiTryInfo(){return `<details class="help"><summary>AIで自然に着せる（任意・有料）</summary>
+  <p class="note" style="margin:6px 0 0">設定の「AI（Gemini）」で自分のAPIキーを入れると、しわや影まで自然な着用イメージも作れます（1枚あたり数円〜十数円、本人負担）。押したときだけ全身写真と服の写真をGoogleへ送ります。サイズ（cm）は反映されないので、サイズの判断は相性チェックで。</p></details>`}
 
 /* ---- 4. コーデ ---- */
 function viewCoord(){const all=S.outfits;const f=S.ofilter;
@@ -943,28 +941,31 @@ let toastT;function toast(msg){$$(".toast").forEach(t=>t.remove());const t=docum
 
 /* ===== 服の登録・編集 ===== */
 function blankRow(label=""){return {label,m:{}}}
-function itemEditor(it,kind){
+function itemEditor(it,kind,preBlobs){
   const d=it?JSON.parse(JSON.stringify({...it,photoIds:undefined})):{id:null,kind,category:"tops",name:"",brand:"",color:"",size:"",price:null,wantLevel:3,wishSize:"",url:"",notes:"",stretch:"none",rows:[blankRow()],selRow:0,isReference:false};
   d.photos=(it?.photoIds||[]).map(id=>({id,existing:true}));d.removed=[];if(!d.rows?.length)d.rows=[blankRow()];
+  (preBlobs||[]).forEach(b=>d.photos.push({id:"t_"+uid(),blob:b,url:URL.createObjectURL(b)}));d._more=!!it;
   const isWish=d.kind==="wish";
   const body=()=>{const c=CAT[d.category];return `
-   <div class="thumbs">${d.photos.map((ph,i)=>`<div class="thumb">${ph.existing?`<img data-blob="${ph.id}" alt="">`:`<img src="${ph.url}" alt="">`}<button class="x" data-ed="rmPhoto" data-i="${i}" aria-label="写真を外す">×</button></div>`).join("")}</div>
-   <div class="row" style="margin-bottom:10px">
-     <label class="btn sm filebtn">${ICON.camera}撮影する<input type="file" accept="image/*" capture="environment" data-ed="addPhoto"></label>
-     <label class="btn sm filebtn">${ICON.image}画像を選ぶ<input type="file" accept="image/*" multiple data-ed="addPhoto"></label>
-     ${AI.ready()&&d.photos.length?`<button class="btn sm primary" data-ed="aiRead">AIで読み取る（仮入力）</button>`:""}</div>
+   ${d.photos.length?`<div class="thumbs big">${d.photos.map((ph,i)=>`<div class="thumb">${ph.existing?`<img data-blob="${ph.id}" alt="">`:`<img src="${ph.url}" alt="">`}<button class="x" data-ed="rmPhoto" data-i="${i}" aria-label="写真を外す">×</button></div>`).join("")}</div>`:""}
+   <div class="row" style="margin-bottom:14px">
+     <label class="btn ${d.photos.length?"sm":"primary"} filebtn">${ICON.camera}${d.photos.length?"撮り足す":"撮影する"}<input type="file" accept="image/*" capture="environment" data-ed="addPhoto"></label>
+     <label class="btn ${d.photos.length?"sm":""} filebtn">${ICON.image}${d.photos.length?"写真を足す":"写真から選ぶ"}<input type="file" accept="image/*" multiple data-ed="addPhoto"></label>
+     ${AI.ready()&&d.photos.length?`<button class="btn sm" data-ed="aiRead">AIで読み取る</button>`:""}</div>
    ${d._ai?`<div class="notice"><b>AIの仮入力</b>${esc(d._ai.join("・"))}。内容を確認・修正してから保存してください。写真の見た目から寸法を推測して入れることはしていません。</div>`:""}
+   <div class="field"><span class="lbl">種類（これだけ選べばOK）</span><div class="chips wrap" style="margin:0">${CATS.map(x=>`<button class="chip" data-ed="cat" data-v="${x.k}" aria-pressed="${d.category===x.k}">${x.l}</button>`).join("")}</div></div>
+   ${isWish?`<div class="field"><label for="ed-price">価格（任意）</label><input class="inp num" id="ed-price" data-f="price" inputmode="numeric" value="${d.price??""}" placeholder="円"></div>`:""}
+   <button class="btn block" data-ed="more" aria-expanded="${!!d._more}" style="margin:6px 0 12px">${d._more?"詳しい入力をとじる":"詳しく入力する（名前・色・サイズ・寸法など・任意）"}</button>
+   <div ${d._more?"":"hidden"}>
    <details class="help"><summary>${isWish?"取り込みのコツ":"撮影のコツ"}</summary><ul>
-     ${isWish?`<li>商品画像やサイズ表は、スクリーンショットを撮って「画像を選ぶ」から追加できます。</li><li>商品URLは保存だけ行います。この版では商品ページから画像や情報を自動で取り込みません。</li>`:""}
-     <li>ハンガーに掛けるか平置きにして、服全体が入るよう正面から撮ります。</li><li>明るい場所で、無地の床・壁など背景はシンプルに。</li><li>必要なら背面・タグ・素材表示の写真も追加しておくと便利です。</li></ul></details>
-   <div class="field"><span class="lbl">カテゴリ</span><div class="chips wrap" style="margin:0">${CATS.map(x=>`<button class="chip" data-ed="cat" data-v="${x.k}" aria-pressed="${d.category===x.k}">${x.l}</button>`).join("")}</div></div>
+     ${isWish?`<li>商品画像やサイズ表は、スクリーンショットを撮って「写真から選ぶ」から追加できます。</li><li>商品URLは保存だけ行います。この版では商品ページから画像や情報を自動で取り込みません。</li>`:""}
+     <li>ハンガーに掛けるか平置きにして、服全体が入るよう正面から撮ります。</li><li>明るい場所で、無地の床・壁など背景はシンプルに。きせかえで背景を消しやすくなります。</li></ul></details>
    <div class="field"><label for="ed-name">名前</label><input class="inp" id="ed-name" data-f="name" value="${esc(d.name)}" placeholder="例：白のオックスフォードシャツ" maxlength="60"></div>
    <div class="side2"><div class="field"><label for="ed-brand">ブランド</label><input class="inp" id="ed-brand" data-f="brand" value="${esc(d.brand)}" maxlength="40"></div>
-   ${isWish?`<div class="field"><label for="ed-price">価格（登録時点）</label><input class="inp num" id="ed-price" data-f="price" inputmode="numeric" value="${d.price??""}" placeholder="円"></div>`
+   ${isWish?`<div class="field"><label for="ed-wsize2">サイズ表記</label><input class="inp" id="ed-wsize2" data-f="wishSize" value="${esc(d.wishSize)}" maxlength="20"></div>`
      :`<div class="field"><label for="ed-size">サイズ表記</label><input class="inp" id="ed-size" data-f="size" value="${esc(d.size)}" placeholder="例：M / 38" maxlength="20"></div>`}</div>
    <div class="field"><span class="lbl">色</span><div class="chips wrap" style="margin:0">${COLORS.map(([n,h])=>`<button class="chip" data-ed="color" data-v="${esc(n)}" aria-pressed="${d.color===n}"><i class="sw" style="background:${h}"></i>${esc(n)}</button>`).join("")}</div></div>
-   ${isWish?`<div class="side2"><div class="field"><label for="ed-wsize">希望サイズ</label><input class="inp" id="ed-wsize" data-f="wishSize" value="${esc(d.wishSize)}" maxlength="20"></div>
-     <div class="field"><span class="lbl">欲しい度</span><div class="stars">${[1,2,3,4,5].map(n=>`<button data-ed="want" data-v="${n}" class="${(d.wantLevel||0)>=n?"on":""}" aria-label="欲しい度${n}">★</button>`).join("")}</div></div></div>`:""}
+   ${isWish?`<div class="side2"><div class="field"><span class="lbl">欲しい度</span><div class="stars">${[1,2,3,4,5].map(n=>`<button data-ed="want" data-v="${n}" class="${(d.wantLevel||0)>=n?"on":""}" aria-label="欲しい度${n}">★</button>`).join("")}</div></div><div></div></div>`:""}
    <div class="field"><label for="ed-url">商品URL</label><input class="inp" id="ed-url" data-f="url" type="url" inputmode="url" value="${esc(d.url)}" placeholder="https://"><span class="note">${AI.ready()?"AIで読み取れるページもあります（読み取れないサイトもあります）。":"保存のみ。ページからの自動取得は行いません。"}</span>${AI.ready()?`<button class="btn sm" style="justify-self:start" data-ed="aiUrl">URLから読み取る（AI）</button>`:""}</div>
    ${c.f.length?`<div class="row" style="justify-content:space-between;margin:20px 0 8px"><span class="sec-h" style="margin:0">${isWish?"サイズ表（cm）":"服の寸法（cm）"}</span><button class="link" data-act="garmentGuide">服の測り方</button></div>
    <p class="note" style="margin:0 0 10px">わからない値は空欄のままで保存できます。「平置き」は平らに置いた幅、「一周」は周囲の長さです。${isWish?"購入候補にするサイズの行を選んでください。":""}</p>
@@ -976,8 +977,8 @@ function itemEditor(it,kind){
    ${isWish?`<button class="btn sm" data-ed="addRow">${ICON.plus}サイズの行を追加</button>`:""}
    <div class="field" style="margin-top:16px"><span class="lbl">素材の伸び</span><div class="chips wrap" style="margin:0">${STRETCH.map(([k,l])=>`<button class="chip" data-ed="stretch" data-v="${k}" aria-pressed="${d.stretch===k}">${l}</button>`).join("")}</div></div>`:
    `<p class="note" style="margin:18px 0 0">このカテゴリは寸法の入力欄がありません。サイズ感はメモに残せます。</p>`}
-   <div class="field" style="margin-top:16px"><label for="ed-notes">メモ</label><textarea class="inp" id="ed-notes" data-f="notes" maxlength="1000">${esc(d.notes)}</textarea></div>`};
-  const foot=`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-ed="save">保存</button>`;
+   <div class="field" style="margin-top:16px"><label for="ed-notes">メモ</label><textarea class="inp" id="ed-notes" data-f="notes" maxlength="1000">${esc(d.notes)}</textarea></div></div>`};
+  const foot=`<button class="btn" data-ed="save">保存</button><button class="btn primary" data-ed="save" data-try="1">保存して着てみる</button>`;
   const w=openSheet({title:it?"編集":isWish?"ほしい物を追加":"服を登録",body:body(),foot});
   const re=()=>setSheet(w,{body:body()});
   w.addEventListener("input",e=>{const t=e.target;
@@ -990,6 +991,7 @@ function itemEditor(it,kind){
     if(a==="aiRead"){await aiReadIntoDraft(d,b);re()}
     else if(a==="aiUrl"){await aiUrlIntoDraft(d,b);re()}
     else if(a==="cat"){d.category=b.dataset.v;re()}
+    else if(a==="more"){d._more=!d._more;re()}
     else if(a==="color"){d.color=d.color===b.dataset.v?"":b.dataset.v;re()}
     else if(a==="want"){d.wantLevel=+b.dataset.v;re()}
     else if(a==="stretch"){d.stretch=b.dataset.v;re()}
@@ -998,7 +1000,8 @@ function itemEditor(it,kind){
     else if(a==="addRow"){d.rows.push(blankRow());re()}
     else if(a==="rmRow"){const i=+b.dataset.i;d.rows.splice(i,1);if(d.selRow>=d.rows.length)d.selRow=d.rows.length-1;else if(d.selRow>i)d.selRow--;re()}
     else if(a==="rmPhoto"){const [ph]=d.photos.splice(+b.dataset.i,1);if(ph.existing)d.removed.push(ph.id);else URL.revokeObjectURL(ph.url);re()}
-    else if(a==="save"){b.disabled=true;try{
+    else if(a==="save"){const goTry=!!b.dataset.try;if(goTry&&!d.photos.length){toast("着てみるには服の写真が必要です。先に撮影するか写真を選んでください");return}
+      $$('[data-ed="save"]',w).forEach(x=>x.disabled=true);try{
       const ids=[];for(const ph of d.photos){ids.push(ph.existing?ph.id:await saveBlob(ph.blob,S.pid));if(!ph.existing)URL.revokeObjectURL(ph.url)}
       await deleteBlobs(d.removed);if(it?.cut&&it.photoIds?.[0]!==ids[0])await deleteBlobs([it.cut.blobId]);
       const rec={id:d.id||"i_"+uid(),profileId:S.pid,kind:d.kind,category:d.category,name:d.name.trim(),brand:d.brand.trim(),color:d.color,size:(d.size||"").trim(),
@@ -1006,7 +1009,8 @@ function itemEditor(it,kind){
         rows:d.rows.map(r=>({label:(r.label||"").trim(),m:Object.fromEntries(Object.entries(r.m).filter(([k])=>CAT[d.category].f.includes(k)))})),selRow:d.selRow||0,
         isReference:!!d.isReference,photoIds:ids,cut:(it?.cut&&it.photoIds?.[0]===ids[0])?it.cut:null,demoKey:it?.demoKey||null,demoCm:it?.demoCm||null,createdAt:it?.createdAt||Date.now(),updatedAt:Date.now(),purchasedAt:it?.purchasedAt||null,priceAt:d.kind==="wish"?(it?.priceAt&&it.price===d.price?it.priceAt:today()):(it?.priceAt||null)};
       await DB.put("items",rec);const i=S.items.findIndex(x=>x.id===rec.id);if(i>=0)S.items[i]=rec;else S.items.push(rec);
-      closeSheet();if(it)closeSheet();render();toast("保存しました");if(it)openItem(rec.id)}catch(err){b.disabled=false;toast("保存できませんでした。端末の空き容量を確認してください。")}}
+      if(goTry){while(sheets.length)closeSheet();render();toast("保存しました");startTry([rec.id]);return}
+      closeSheet();if(it)closeSheet();render();toast("保存しました");if(it)openItem(rec.id)}catch(err){console.error(err);$$('[data-ed="save"]',w).forEach(x=>x.disabled=false);toast("保存できませんでした。端末の空き容量を確認してください。")}}
   })}
 
 /* 服の詳細 */
@@ -1553,29 +1557,47 @@ function cutoutSheet(it,onDone){let tol=it.cut?.tol||40;let cur=null;
     it.cut={blobId:id,w:cur.w,h:cur.h,tol,removed:cur.removed};await DB.put("items",it);closeSheet();onDone&&onDone()})}
 function garmentCm(it){const r=rowOf(it);const v=k=>toNum(r?.m?.[k]?.v);if(it.demoCm&&["shoes","acc"].includes(it.category))return it.demoCm;
   switch(it.category){case"tops":case"outer":case"onepiece":return v("length");case"pants":return (v("rise")&&v("inseamG"))?v("rise")+v("inseamG"):null;case"skirt":return v("skirtLen");case"bag":return v("bagH");default:return null}}
-function calSheet(p,key,onDone){const step={i:0,top:null,bottom:null,cx:[]};
-  const w=openSheet({title:"縮尺を合わせる",cls:"full",body:`<p id="cal-msg" style="margin:0 0 10px;font-weight:700">① 頭のてっぺんをタップしてください</p><div class="stage" id="cal-stage"><img class="bodyimg" data-blob="${p.photos[key]}" alt="全身写真"></div>
-   <p class="note" style="margin:10px 0 0">身長（${bodyVal(p.body,"height")?n1(bodyVal(p.body,"height").avg)+"cm":"未入力"}）と写真の長さから、服の大きさを合わせます。一度合わせれば、この写真では次から自動です。</p>`,
-   foot:`<button class="btn" id="cal-redo">やり直す</button><button class="btn primary" id="cal-ok" disabled>保存</button>`});
-  const st=$("#cal-stage",w);const ci=$("img",st);const fit=()=>{if(ci.naturalWidth)st.style.maxWidth=`min(440px, calc(62vh * ${ci.naturalWidth/ci.naturalHeight}))`};ci.addEventListener("load",fit);fit();const line=(y,lab)=>{const l=document.createElement("div");l.className="calline";l.style.top=(y*100)+"%";l.innerHTML=`<span>${lab}</span>`;st.appendChild(l)};
+function calSheet(p,key,onDone){const step={i:0,top:null,bottom:null,cx:[]};const hasH=!!bodyVal(p.body,"height");
+  const w=openSheet({title:"服の大きさを合わせる準備",cls:"full",body:`${hasH?"":`<div class="row" style="margin:0 0 8px;flex-wrap:nowrap"><label for="cal-h" style="font-size:13px;font-weight:700">身長</label><input class="inp num" id="cal-h" inputmode="decimal" placeholder="例：170" style="max-width:7em;padding:6px 10px"><span class="note" style="margin:0">cm（入れると大きさが自動で合う）</span></div>`}
+   <p id="cal-msg" style="margin:0 0 8px;font-weight:700">① 写真の頭のてっぺんをタップ</p><div class="stage" id="cal-stage"><img class="bodyimg" data-blob="${p.photos[key]}" alt="全身写真"></div>
+   <p class="note" style="margin:10px 0 0">身長と写真の長さから、服の大きさを合わせます。一度やれば、この写真では次から聞きません。タップが面倒なら「だいたいでOK」でも進めます（頭が写真の上の端、足が下の端として計算）。</p>`,
+   foot:`<button class="btn" id="cal-skip">だいたいでOK</button><button class="btn primary" id="cal-ok" disabled>次へ</button>`});
+  const st=$("#cal-stage",w);const ci=$("img",st);const fit=()=>{if(!ci.naturalWidth)return;const sb=$(".sheet-b",w);const ft=$(".sheet-f",w);const lim=Math.min(sb?sb.getBoundingClientRect().bottom:innerHeight,ft?ft.getBoundingClientRect().top:innerHeight);const avail=lim-st.getBoundingClientRect().top-12;
+    st.style.maxWidth=Math.max(140,Math.min(440,Math.max(avail,150)*ci.naturalWidth/ci.naturalHeight))+"px"};ci.addEventListener("load",()=>{fit();setTimeout(fit,350)});fit();addEventListener("resize",fit);const line=(y,lab)=>{const l=document.createElement("div");l.className="calline";l.style.top=(y*100)+"%";l.innerHTML=`<span>${lab}</span>`;st.appendChild(l)};
+  const redo=()=>{step.i=0;step.top=step.bottom=null;step.cx=[];$$(".calline",st).forEach(x=>x.remove());$("#cal-msg",w).textContent="① 写真の頭のてっぺんをタップ";$("#cal-ok",w).disabled=true};
   st.addEventListener("pointerdown",e=>{const r=st.getBoundingClientRect();const y=(e.clientY-r.top)/r.height,x=(e.clientX-r.left)/r.width;
-    if(step.i===0){step.top=y;step.cx.push(x);line(y,"頭");step.i=1;$("#cal-msg",w).textContent="② かかと（足の裏）をタップしてください"}
-    else if(step.i===1){if(y<=step.top+0.2){toast("頭より下をタップしてください");return}step.bottom=y;step.cx.push(x);line(y,"かかと");step.i=2;$("#cal-msg",w).textContent="OKなら「保存」を押してください";$("#cal-ok",w).disabled=false}});
-  $("#cal-redo",w).addEventListener("click",()=>{step.i=0;step.top=step.bottom=null;step.cx=[];$$(".calline",st).forEach(x=>x.remove());$("#cal-msg",w).textContent="① 頭のてっぺんをタップしてください";$("#cal-ok",w).disabled=true});
-  $("#cal-ok",w).addEventListener("click",async()=>{p.cal=p.cal||{};p.cal[key]={top:step.top,bottom:step.bottom,cx:step.cx.reduce((a,b)=>a+b,0)/step.cx.length,blobId:p.photos[key]};await saveProfile(p);closeSheet();onDone&&onDone()})}
-async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photos?.[key];if(!bid)return;
+    if(step.i===2)redo();
+    if(step.i===0){step.top=y;step.cx.push(x);line(y,"頭");step.i=1;$("#cal-msg",w).textContent="② 足の裏（かかと）をタップ"}
+    else if(step.i===1){if(y<=step.top+0.2){toast("頭より下をタップしてください");return}step.bottom=y;step.cx.push(x);line(y,"足");step.i=2;$("#cal-msg",w).textContent="OKなら「次へ」（タップでやり直し）";$("#cal-ok",w).disabled=false}});
+  const done=async(top,bottom,cx)=>{const hi=$("#cal-h",w);const hv=hi?toNum(hi.value):null;if(hv!=null){if(hv<80||hv>230){toast("身長は80〜230cmで入れてください");return}p.body=p.body||{};p.body.height={...(p.body.height||{}),v:hv}}
+    p.cal=p.cal||{};p.cal[key]={top,bottom,cx,blobId:p.photos[key]};await saveProfile(p);closeSheet();onDone&&onDone()};
+  $("#cal-ok",w).addEventListener("click",()=>{if(step.i<2)return;done(step.top,step.bottom,step.cx.reduce((a,b)=>a+b,0)/step.cx.length)});
+  $("#cal-skip",w).addEventListener("click",()=>done(.03,.97,.5))}
+function bodyPhotoSheet(next){
+  const w=openSheet({title:"まず自分の全身写真",body:`<p style="margin:0 0 10px;font-weight:700">服を重ねる土台になる、あなたの全身写真を1枚入れてください。</p>
+   <ul class="note" style="margin:0 0 14px;padding-left:1.2em"><li>頭から足先まで全部入れる</li><li>正面を向いて、まっすぐ立つ</li><li>体のラインが分かる服だと合わせやすい</li></ul>
+   <div class="row"><label class="btn primary filebtn">${ICON.camera}撮影する<input type="file" accept="image/*" capture="user" data-bp="1"></label><label class="btn filebtn">${ICON.image}写真から選ぶ<input type="file" accept="image/*" data-bp="1"></label></div>
+   <p class="note" style="margin:12px 0 0">写真はこの端末の中だけに保存されます。どこにも送りません。</p>`,foot:`<button class="btn" data-act="closeSheet">やめる</button>`});
+  w.addEventListener("change",async e=>{if(!e.target.dataset.bp||!e.target.files?.[0])return;const f=e.target.files[0];e.target.value="";
+    const [blob]=await filesToBlobs([f]);if(!blob)return;const p=prof();p.photos=p.photos||{};const old=p.photos.front;p.photos.front=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);
+    S.tryPhoto="front";closeSheet();render();next&&next()})}
+function startTry(ids=[]){const p=prof();ids=ids.filter(id=>itemById(id)?.photoIds?.length);if(ids[0])S.tryItem=ids[0];
+  let key=p.photos?.[S.tryPhoto]?S.tryPhoto:["front","side","back"].find(k=>p.photos?.[k]);
+  if(!key){bodyPhotoSheet(()=>startTry(ids));return}S.tryPhoto=key;manualTry(ids)}
+async function manualTry(pre=[]){const p=prof();const key=S.tryPhoto;const bid=p.photos?.[key];if(!bid){startTry(pre);return}
   const cal=p.cal?.[key]&&p.cal[key].blobId===bid?p.cal[key]:null;
-  if(!cal){calSheet(p,key,()=>manualTry());return}
+  if(!cal){calSheet(p,key,()=>manualTry(pre));return}
   const heightCm=bodyVal(p.body,"height")?.avg||null;
   const items=S.items.filter(i=>i.photoIds?.length).sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1));
   const L=[];let sel=-1;
-  const w=openSheet({title:"手で重ねる",cls:"full",body:`<div class="stage" id="mt-stage"><img class="bodyimg" id="mt-body" data-blob="${bid}" alt="全身写真"></div>
+  const w=openSheet({title:"自分に着せる",cls:"full",body:`<div class="stage" id="mt-stage"><img class="bodyimg" id="mt-body" data-blob="${bid}" alt="全身写真"></div>
    <p class="readout" id="mt-read">${heightCm?"下の服をタップすると、自動で大きさを合わせて重ねます":"身長が未入力のため、大きさは手で合わせてください（Myサイズで身長を入れると自動になります）"}</p>
    <div class="tools">
     <button class="btn" data-mt="front">前へ</button><button class="btn" data-mt="back">後ろへ</button><button class="btn" data-mt="flip">左右反転</button><button class="btn" data-mt="remove">外す</button>
     <button class="btn" data-mt="smaller">小さく</button><button class="btn" data-mt="bigger">大きく</button><button class="btn" data-mt="rot">少し回す</button><button class="btn" data-mt="fit">自動に戻す</button></div>
-   <p class="note" style="margin:0 0 8px"><button class="btn sm" style="margin-bottom:8px" data-mt="demo">流行りの見本の服を追加</button><br>重ねる服（タップで追加・もう一度で選択）　<button class="link" data-mt="cut">背景の消し具合</button>　<button class="link" data-mt="recal">縮尺を合わせ直す</button></p>
+   <p class="note" style="margin:0 0 8px"><b>下の服をタップ → 着せる</b>。指でドラッグで移動、2本指で大きさ・向き。<br><button class="link" data-mt="cut">背景の消し具合</button>　<button class="link" data-mt="recal">縮尺を合わせ直す</button></p>
    <div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 76px" data-add="${i.id}"><div class="ph" style="aspect-ratio:4/5">${`<img data-blob="${i.photoIds[0]}" alt="">`}${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category].l)}</span></div></button>`).join("")||`<p class="note">写真のある服を登録すると、ここに出ます。</p>`}</div>
+   <button class="btn sm" style="margin-top:10px" data-mt="demo">流行りの見本の服を追加</button>
    <p class="note" style="margin:12px 0 0">写真を重ねて見るだけの機能です。平置きの服は実際に着たときより幅が広く見えます。丈の位置は写真の撮り方で数cmずれることがあります。</p>`,
    foot:`<button class="btn" data-mt="outfit">コーデに保存</button><button class="btn primary" data-mt="save">画像を保存</button>`});
   const stage=$("#mt-stage",w),bodyImg=$("#mt-body",w);
@@ -1595,7 +1617,7 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
     const topFrac={tops:.14,outer:.135,onepiece:.14,pants:.42,skirt:.40,bag:.42,acc:.05}[it.category];
     if(it.category==="shoes"){l.x=cx;l.y=top+H-hpx/2}else{l.x=cx;l.y=top+(topFrac??.2)*H+hpx/2}};
   const add=async id=>{const ix=L.findIndex(l=>l.itemId===id);if(ix>=0){sel=ix;draw();return}
-    const it=itemById(id);toast("切り抜いています…");const cut=await ensureCutout(it);if(!cut){toast("写真を読み込めませんでした");return}
+    const it=itemById(id);toast("切り抜いています…");const cut=await ensureCutout(it);$$(".toast").forEach(t=>t.remove());if(!cut){toast("写真を読み込めませんでした");return}
     const url=await blobURL(cut.blobId);const l={itemId:id,url,w:cut.w,h:cut.h,x:0,y:0,s:1,r:0,flip:false};autoPlace(l);
     const order={shoes:0,pants:1,skirt:1,tops:2,onepiece:2,outer:3,bag:4,acc:5};let pos=L.length;while(pos>0&&(order[itemById(L[pos-1].itemId).category]??2)>(order[it.category]??2))pos--;
     L.forEach(x=>{if(x.el){x.el.remove();x.el=null}});L.splice(pos,0,l);sel=pos;draw();$(".sheet-b",w).scrollTo({top:0,behavior:"smooth"});if(!cut.removed)toast("背景をうまく消せませんでした。「背景の消し具合」で調整できます")};
@@ -1617,8 +1639,9 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
       for(const q of L){x.save();x.translate(q.x*k,q.y*k);x.rotate(q.r*Math.PI/180);x.scale(q.flip?-1:1,1);x.drawImage(q.el,-q.w*q.s*k/2,-q.h*q.s*k/2,q.w*q.s*k,q.h*q.s*k);x.restore()}
       const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));const id=await saveBlob(blob,p.id);p.tryons=p.tryons||[];p.tryons.push({id:"t_"+uid(),kind:"manual",itemIds:L.map(q=>q.itemId),blobId:id,photo:key,createdAt:Date.now()});await saveProfile(p);render();toast("画像を保存しました（着せ替え画面の下にあります）");return}
     if(m==="outfit"){const ids=L.map(q=>q.itemId);while(sheets.length)closeSheet();outfitEditor(null,ids);return}
-    if(m==="recal"){closeSheet();calSheet(p,key,()=>manualTry());return}
-    if(m==="demo"){closeSheet();demoCatalog(()=>manualTry());return}
+    const keep=L.map(q=>q.itemId);
+    if(m==="recal"){closeSheet();calSheet(p,key,()=>manualTry(keep));return}
+    if(m==="demo"){closeSheet();demoCatalog(()=>manualTry(keep));return}
     if(!l){toast("先に服を選んでください");return}
     if(m==="cut"){cutoutSheet(itemById(l.itemId),async()=>{const it=itemById(l.itemId);l.url=await blobURL(it.cut.blobId);const ratio=l.h*l.s;l.w=it.cut.w;l.h=it.cut.h;l.s=ratio/l.h;if(l.el){l.el.remove();l.el=null}draw()});return}
     if(m==="front"&&sel<L.length-1){[L[sel],L[sel+1]]=[L[sel+1],L[sel]];sel++}
@@ -1628,6 +1651,7 @@ async function manualTry(){const p=prof();const key=S.tryPhoto;const bid=p.photo
     else if(m==="smaller"){l.s*=0.95;l.auto=false}else if(m==="bigger"){l.s*=1.05;l.auto=false}
     else if(m==="rot"){l.r+=5;l.auto=false}else if(m==="fit")autoPlace(l);
     L.forEach(x=>{if(x.el){x.el.remove();x.el=null}});draw()});
+  for(const id of pre){if(itemById(id)?.photoIds?.length){try{await add(id)}catch(err){console.error(err)}}}
 }
 /* 似合う提案 */
 function bodyText2(p){return BODY.map(x=>{const t=bodyText(p.body,x.k);return t?`${x.l}: ${t}cm`:null}).filter(Boolean).join(" / ")||"未入力"}
@@ -1723,10 +1747,10 @@ const ACT={
   closeSheet:()=>closeSheet(),
   settings:()=>settingsSheet(), profiles:()=>profilesSheet(),
   about:()=>openSheet({title:"このアプリについて",body:aboutHTML()}),
-  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render();
+  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="closet";render();
     if(DRIVE.available()&&!S.bk.drive.enabled){const w=openSheet({title:"消えても戻せるようにしませんか？",body:`<p style="margin:0 0 10px">データはこのスマホの中だけにあるため、ブラウザのデータを消したり機種変更したりすると消えてしまいます。</p><p style="margin:0 0 14px"><b>Googleドライブ自動保存</b>をオンにすると、変更のたびにあなたのGoogleドライブへ保存され、別のスマホや開き方でも「Googleドライブから戻す」で元通りにできます。</p><p class="note" style="margin:0">保存先はあなた自身のGoogleドライブだけです。作った人には届きません。</p>`,foot:`<button class="btn" data-act="closeSheet">あとで</button><button class="btn primary" data-act="driveSetup">オンにする</button>`})}},
   sample:()=>createSample(),
-  manualTry:()=>manualTry(), demoCatalog:()=>demoCatalog(),
+  manualTry:()=>startTry(S.tryItem?[S.tryItem]:[]), demoCatalog:()=>demoCatalog(),
   skelCheck:()=>{const p=prof();quizSheet({title:"骨格セルフチェック",qs:SKQ,prev:p.skeleton?.raw,intro:"鏡を見たり、触って確かめながら、いちばん近いものを選んでください。わからないものは「わからない」でOKです。",
     onDone:async(ans,raw)=>{p.skeleton={...skeletonResult(ans,p.body),raw,at:Date.now()};await saveProfile(p);render();toast(`${SKEL[p.skeleton.type].n}の傾向が出ました（参考）`)}})},
   pcCheck:()=>{const p=prof();quizSheet({title:"パーソナルカラー セルフチェック",qs:PCQ,prev:p.pcolor?.raw,intro:"自然光の下で、すっぴんに近い状態で確かめるのがおすすめです。わからないものは「わからない」でOKです。",
@@ -1756,11 +1780,11 @@ const ACT={
     if(!await confirmDialog({title:"Myクローゼットへ移動しますか？",body:`購入済みとして移動します。サイズは「${r.label||it.wishSize||"未設定"}」の行の寸法を残します。`,ok:"移動する"}))return;
     Object.assign(it,{kind:"closet",size:r.label||it.wishSize||"",rows:[r],selRow:0,purchasedAt:today(),updatedAt:Date.now(),wantLevel:null});
     await DB.put("items",it);closeSheet();S.tab="closet";render();toast("Myクローゼットへ移動しました");openItem(it.id)},
-  tryThis:b=>{S.tryItem=b.dataset.id;S.tab="try";while(sheets.length)closeSheet();render();scrollTo(0,0)},
+  tryThis:b=>{const id=b.dataset.id;while(sheets.length)closeSheet();if(!itemById(id)?.photoIds?.length){toast("この服には写真がありません。編集から写真を追加してください");return}S.tab="try";render();scrollTo(0,0);startTry([id])},
   matchThis:b=>matchItem(b.dataset.id),
   outfitWith:b=>{closeSheet();outfitEditor(null,[b.dataset.id])},
   newOutfit:()=>outfitEditor(null), editOutfit:b=>outfitEditor(S.outfits.find(o=>o.id===b.dataset.id)),
-  tryPick:b=>{S.tryItem=S.tryItem===b.dataset.id?null:b.dataset.id;const sx=$(".strip")?.scrollLeft;render();if($(".strip"))$(".strip").scrollLeft=sx},
+  tryPick:b=>{startTry([b.dataset.id])},
   tryPhoto:b=>{S.tryPhoto=b.dataset.v;render()},
   guide:b=>measureGuide(b.dataset.k), guideOnly:b=>guideOnly(b.dataset.k),
   bodyEdit:()=>bodyEditor(), prefEdit:()=>prefEditor(), photoGuide:()=>photoGuide(), garmentGuide:()=>garmentGuide(),
@@ -1772,12 +1796,17 @@ const ACT={
   wipeAll:()=>wipeFlow(),
   persist:async()=>{try{const r=await navigator.storage?.persist?.();toast(r?"このブラウザに保存の継続を依頼しました":"この環境では依頼できませんでした。バックアップをおすすめします")}catch(e){toast("この環境では依頼できませんでした。バックアップをおすすめします")}}
 };
-document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b,e)}});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){e.preventDefault();try{const r=f(b,e);if(r&&r.catch)r.catch(oops)}catch(err){oops(err)}}});
+let oopsAt=0;function oops(err){console.error(err);const n=Date.now();if(n-oopsAt<1500)return;oopsAt=n;try{toast("うまくいきませんでした。もう一度試してください（データは消えていません）")}catch(e){}}
+window.addEventListener("error",e=>{if(e.message&&/ResizeObserver|Script error/.test(e.message))return;oops(e.error||e.message)});
+window.addEventListener("unhandledrejection",e=>{const m=String(e.reason?.message||e.reason||"");if(/AbortError|NotAllowedError|share/i.test(m))return;oops(e.reason)});
 document.addEventListener("input",e=>{if(e.target.id==="closet-q"){S.q=e.target.value;$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheets.length&&!$(".modal-wrap"))closeSheet();if(e.key==="Enter"&&e.target.id==="w-name")ACT.createFirst()});
+document.addEventListener("change",async e=>{const k=e.target.dataset?.quick;if(!k||!e.target.files?.length)return;const fl=[...e.target.files];e.target.value="";
+  const blobs=await filesToBlobs(fl);if(!blobs.length)return;itemEditor(null,k,blobs)});
 document.addEventListener("change",e=>{if(e.target.dataset?.restore){const f=e.target.files?.[0];e.target.value="";if(f)restoreFlow(f)}});
 document.addEventListener("change",async e=>{const k=e.target.dataset?.bodyphoto;if(!k||!e.target.files?.[0])return;const [blob]=await filesToBlobs([e.target.files[0]]);e.target.value="";if(!blob)return;
-  const p=prof();const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
+  const p=prof();p.photos=p.photos||{};const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
 boot();
 if("serviceWorker" in navigator&&/github\.io$/.test(location.hostname)){
   let reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",()=>{if(reloaded||sheets.length)return;reloaded=true;location.reload()});

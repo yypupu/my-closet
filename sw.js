@@ -1,6 +1,6 @@
 /* Myクローゼット：オフラインでも開けるようにするための最小限のキャッシュ。
    アプリ本体は「通信できれば最新、できなければ保存済み」。個人データは扱いません。 */
-const CACHE = "my-closet-v10";
+const CACHE = "my-closet-v11";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./privacy.html"];
 const CDN = /^https:\/\/(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 
