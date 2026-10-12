@@ -857,7 +857,7 @@ function itemEditor(it,kind){
    <div class="field"><span class="lbl">色</span><div class="chips wrap" style="margin:0">${COLORS.map(([n,h])=>`<button class="chip" data-ed="color" data-v="${esc(n)}" aria-pressed="${d.color===n}"><i class="sw" style="background:${h}"></i>${esc(n)}</button>`).join("")}</div></div>
    ${isWish?`<div class="side2"><div class="field"><label for="ed-wsize">希望サイズ</label><input class="inp" id="ed-wsize" data-f="wishSize" value="${esc(d.wishSize)}" maxlength="20"></div>
      <div class="field"><span class="lbl">欲しい度</span><div class="stars">${[1,2,3,4,5].map(n=>`<button data-ed="want" data-v="${n}" class="${(d.wantLevel||0)>=n?"on":""}" aria-label="欲しい度${n}">★</button>`).join("")}</div></div></div>`:""}
-   <div class="field"><label for="ed-url">商品URL</label><input class="inp" id="ed-url" data-f="url" type="url" inputmode="url" value="${esc(d.url)}" placeholder="https://"><span class="note">保存のみ。自動取得は行いません。</span></div>
+   <div class="field"><label for="ed-url">商品URL</label><input class="inp" id="ed-url" data-f="url" type="url" inputmode="url" value="${esc(d.url)}" placeholder="https://"><span class="note">${AI.ready()?"AIで読み取れるページもあります（読み取れないサイトもあります）。":"保存のみ。ページからの自動取得は行いません。"}</span>${AI.ready()?`<button class="btn sm" style="justify-self:start" data-ed="aiUrl">URLから読み取る（AI）</button>`:""}</div>
    ${c.f.length?`<div class="row" style="justify-content:space-between;margin:20px 0 8px"><span class="sec-h" style="margin:0">${isWish?"サイズ表（cm）":"服の寸法（cm）"}</span><button class="link" data-act="garmentGuide">服の測り方</button></div>
    <p class="note" style="margin:0 0 10px">わからない値は空欄のままで保存できます。「平置き」は平らに置いた幅、「一周」は周囲の長さです。${isWish?"購入候補にするサイズの行を選んでください。":""}</p>
    ${d.rows.map((r,ri)=>`<div class="sizerow ${isWish&&d.selRow===ri?"sel":""}">
@@ -880,6 +880,7 @@ function itemEditor(it,kind){
     const blobs=await filesToBlobs(t.files);blobs.forEach(b=>d.photos.push({id:"t_"+uid(),blob:b,url:URL.createObjectURL(b)}));t.value="";re()});
   w.addEventListener("click",async e=>{const b=e.target.closest("[data-ed]");if(!b)return;e.preventDefault();const a=b.dataset.ed;
     if(a==="aiRead"){await aiReadIntoDraft(d,b);re()}
+    else if(a==="aiUrl"){await aiUrlIntoDraft(d,b);re()}
     else if(a==="cat"){d.category=b.dataset.v;re()}
     else if(a==="color"){d.color=d.color===b.dataset.v?"":b.dataset.v;re()}
     else if(a==="want"){d.wantLevel=+b.dataset.v;re()}
@@ -1255,7 +1256,7 @@ const AI={key:null,models:{text:null,image:null},
     const text=pick(ms.filter(n=>/gemini/.test(n)&&/flash-lite/.test(n)&&!/image/.test(n)&&!bad.test(n)))||pick(ms.filter(n=>/gemini/.test(n)&&/flash/.test(n)&&!/image/.test(n)&&!bad.test(n)));
     const image=pick(ms.filter(n=>/gemini/.test(n)&&/image/.test(n)&&/flash/.test(n)&&!bad.test(n)))||pick(ms.filter(n=>/gemini/.test(n)&&/image/.test(n)&&!bad.test(n)));
     return {text,image}},
-  async call(model,parts,{json=false,image=false}={}){const body={contents:[{role:"user",parts}],generationConfig:{}};
+  async call(model,parts,{json=false,image=false,url=false}={}){const body={contents:[{role:"user",parts}],generationConfig:{}};if(url)body.tools=[{url_context:{}}];
     if(json)body.generationConfig.responseMimeType="application/json";if(image)body.generationConfig.responseModalities=["TEXT","IMAGE"];
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":this.key},body:JSON.stringify(body)});
     const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j?.error?.message||"");e.status=r.status;throw e}
@@ -1333,6 +1334,18 @@ function applyRead(d,j){const f=[];const isNew=!d.id;
       if(r){const t=d.rows[0];let n=0;for(const[k,v] of Object.entries(r.m)){if(t.m[k]?.v==null){t.m[k]=v;n++}}if(!t.label)t.label=r.label;if(n)f.push(`寸法 ${n}項目（サイズ${r.label||""}の行）`)}
       else f.push("サイズ表はありましたが、どのサイズか分からないため寸法は入れていません（サイズ表記を入れてもう一度どうぞ）")}}
   d._ai=f.length?f:["読み取れる情報がありませんでした"]}
+
+async function aiUrlIntoDraft(d,btn){const u=(d.url||"").trim();if(!/^https?:\/\//.test(u)){toast("先に商品URLを入れてください");return}
+  const a=await aiAsk({title:"URLから読み取る",sends:["入力した商品URL（GoogleがそのページをAIで読みます）","いま選んでいるカテゴリ"],cost:"1円未満"});if(!a.ok)return;
+  btn.disabled=true;btn.textContent="読み取り中…";
+  try{const prompt=readPrompt(d).replace("添付画像は、服の写真・タグ・素材表示・通販サイトのサイズ表のスクリーンショットのいずれかです。",`次の商品ページを読んでください：${u}`).replace('"notes":','"price": 税込価格の数値（円） または null,\n "notes":')+`
+ページを読めなかった場合や、服の商品ページでない場合は {"error":"read"} だけを返してください。JSON以外は書かないでください。`;
+    const r=await AI.call(AI.models.text,[{text:prompt}],{url:true});const j=parseJSON(r.text);
+    if(j.error){d._ai=["このページは読み取れませんでした。商品画像やサイズ表のスクリーンショット、手入力で登録してください"];return}
+    applyRead(d,j);
+    if(d.kind==="wish"&&toNum(j.price)!=null&&d.price==null){d.price=toNum(j.price);d._ai=[...(d._ai||[]).filter(x=>!x.startsWith("読み取れる情報")),"価格（いまの表示価格）"]}
+    d._ai.push("画像はページから取り込めないため、商品画像のスクリーンショットを追加してください")}
+  catch(e){d._ai=[e.message==="parse"?"このページは読み取れませんでした。スクリーンショットか手入力で登録してください":aiErr(e)]}}
 /* 似合う提案 */
 function bodyText2(p){return BODY.map(x=>{const t=bodyText(p.body,x.k);return t?`${x.l}: ${t}cm`:null}).filter(Boolean).join(" / ")||"未入力"}
 function aiSuggestPanel(p){const a=p.aiSuggest;
@@ -1472,6 +1485,7 @@ document.addEventListener("change",e=>{if(e.target.dataset?.restore){const f=e.t
 document.addEventListener("change",async e=>{const k=e.target.dataset?.bodyphoto;if(!k||!e.target.files?.[0])return;const [blob]=await filesToBlobs([e.target.files[0]]);e.target.value="";if(!blob)return;
   const p=prof();const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
 boot();
+if("serviceWorker" in navigator&&/github\.io$/.test(location.hostname)){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
 </script>
 
 </body>
