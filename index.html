@@ -738,6 +738,7 @@ function viewMe(){const p=prof();const b=p.body||{};const filled=BODY.filter(x=>
   </div>
   ${(p.history||[]).length?`<div class="panel"><h2>更新履歴</h2><div class="hist">${historyHTML(p)}</div></div>`:""}
   <div class="panel"><h2>体型の特徴</h2>${featuresHTML(p)}</div>
+  ${typePanel(p)}
   <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">好み・目的</h2><button class="link" data-act="prefEdit">編集</button></div>
    <dl class="kv"><dt>好きな色</dt><dd>${p.colors?.length?p.colors.map(c=>`${swatch(c)} ${esc(c)}`).join("　"):"未設定"}</dd>
    <dt>テイスト</dt><dd>${p.tastes?.length?esc(p.tastes.join("、")):"未設定"}</dd>
@@ -765,7 +766,10 @@ function featuresHTML(p){const {out,miss}=bodyFeatures(p.body||{});
   <p class="note" style="margin:10px 0 0">一般的な体の比率をもとにした目安です。良い・悪いを表すものではありません。骨格診断（ストレート・ウェーブ・ナチュラル）は寸法だけでは確定できないため、この版では表示していません。</p>`}
 function suggestHTML(p){const {out}=bodyFeatures(p.body||{});const ks=new Set(out.map(f=>f.k));const goals=p.goals||[];const cards=[];
   const fav=(p.colors||[]).filter(c=>c!=="柄・その他");
-  const colorLine=fav.length?`好きな色（${fav.slice(0,2).join("・")}）をトップスか小物に入れ、全体は3色以内に`:"全体を3色以内にまとめると整って見えます（好きな色を登録すると具体的になります）";
+  const PC=p.pcolor?.season?SEASON[p.pcolor.season]:null;const SK=p.skeleton?.type?SKEL[p.skeleton.type]:null;
+  if(SK)cards.push({t:`${SK.n}タイプの傾向に合わせて`,s:SK.good.slice(0,3).join("、"),b:SK.balance,c:PC?`${PC.n}タイプの得意色（${PC.good.slice(0,3).map(x=>x[0]).join("・")}）を顔まわりに`:"",r:`骨格セルフチェックで${SK.n}寄りの結果が出たため。苦手になりやすい「${SK.hard[0]}」は、${SK.fix}`});
+  const colorLine=PC?`${PC.n}タイプの得意色（${PC.good.slice(0,3).map(x=>x[0]).join("・")}）を顔の近くに。全体は3色以内に`:fav.length?`好きな色（${fav.slice(0,2).join("・")}）をトップスか小物に入れ、全体は3色以内に`:"全体を3色以内にまとめると整って見えます（好きな色を登録すると具体的になります）";
+  if(cards[0]&&!cards[0].c)cards[0].c=colorLine;
   if(ks.has("shoulderWide")||goals.includes("肩まわりを目立たせたくない"))cards.push({t:"肩まわりをすっきり見せる",s:"Vネック・深めの開き、ラグランやドロップショルダーの袖",b:"首元に縦の開きをつくり、肩の横幅より縦のラインが目に入るように",c:colorLine,r:ks.has("shoulderWide")?"肩幅が身長に対して広めなので、肩の端に視線が集まりにくい形が肩まわりの印象をやわらげます":"目的に「肩まわりを目立たせたくない」が選ばれているため"});
   if(ks.has("shoulderNarrow"))cards.push({t:"肩にほどよく存在感を",s:"パフスリーブ、ボートネック、肩の線がはっきりしたジャケット",b:"上半身にやや張りのある素材を選ぶ",c:colorLine,r:"肩まわりがコンパクトなので、肩に形のあるデザインで上下のバランスが取りやすくなります"});
   if(ks.has("upperVol"))cards.push({t:"上半身は軽く、下に重心を",s:"ハリのある素材のVネック、下はストレートやワイドのボトム",b:"トップスは体に沿いすぎない程度、ボトムに少しボリューム",c:"上を濃い色・下を明るい色にすると重心が下がります",r:"胸囲がヒップより大きいため、ボトム側に量感を足すと全体が整います"});
@@ -782,6 +786,89 @@ function suggestHTML(p){const {out}=bodyFeatures(p.body||{});const ks=new Set(ou
   return cards.slice(0,5).map(c=>`<div class="sugg"><h3>${esc(c.t)}</h3><dl><dt>シルエット</dt><dd>${esc(c.s)}</dd><dt>丈・量感</dt><dd>${esc(c.b)}</dd><dt>色・組み合わせ</dt><dd>${esc(c.c)}</dd><dt>理由</dt><dd>${esc(c.r)}</dd></dl></div>`).join("")+
   `<p class="note" style="margin:12px 0 0">寸法と、選んだ好み・目的から作った一般的な提案です（AIは使っていません）。似合う・似合わないを決めるものではないので、好きな服を選ぶ参考にしてください。</p>`}
 
+
+/* ===== 骨格・パーソナルカラー（セルフチェック・参考） ===== */
+const SKEL={
+  straight:{n:"ストレート",feel:"体に厚みとハリがあり、メリハリのある立体的な体つきの傾向",
+    good:["ハリのある素材（コットン・ウール・レザー）","ジャストサイズのシンプルな形","Vネック・深めのUネック","Iラインのシルエット（センタープレスパンツ、膝丈タイトスカート）"],
+    hard:["ふんわり・とろみの強い素材","フリルやギャザーが多いデザイン","大きすぎるオーバーサイズ"],fix:"ハリのある素材を選び、首元を開けると取り入れやすくなります",balance:"ジャストサイズで、ウエストは自然な位置。丈は膝前後がまとまりやすい",
+    cat:{top:"ハリのある素材・ジャストサイズ・首元が開いた形だと似合いやすい傾向",bottom:"センタープレスやストレートなど、縦のラインが出る形が似合いやすい傾向",skirt:"膝丈のタイトやIラインが似合いやすく、ふんわり広がる形は素材にハリがあると取り入れやすい",one:"シンプルでIラインのワンピースが似合いやすい傾向"}},
+  wave:{n:"ウェーブ",feel:"体が薄く、やわらかい質感で、重心が下にきやすい傾向",
+    good:["やわらかい素材（シフォン・ニット・とろみ素材）","短め丈のトップスとハイウエスト","フレア・プリーツスカート","ウエストマーク、首元の装飾、小ぶりのアクセサリー"],
+    hard:["厚手でハリの強い素材","ローライズやロング丈トップスで重心が下がる組み合わせ","ゆるすぎるオーバーサイズ"],fix:"ウエスト位置を上げたり、首元に飾りを足すと取り入れやすくなります",balance:"ウエスト位置を高めにして、上を短め・下にボリューム",
+    cat:{top:"やわらかい素材・短め丈・首元に飾りがある形が似合いやすい傾向",bottom:"ハイウエストで、裾に向かって広がる形やテーパードが似合いやすい傾向",skirt:"フレアやプリーツなど、やわらかく広がる形が似合いやすい傾向",one:"ウエストの切り替えが高めのワンピースが似合いやすい傾向"}},
+  natural:{n:"ナチュラル",feel:"骨格のフレームがしっかりして、関節や骨の存在感がある傾向",
+    good:["ラフな素材（リネン・ツイード・デニム・ざっくりニット）","オーバーサイズやゆとりのある形","ロング丈のアウター・ワイドパンツ・マキシスカート","大ぶりのアクセサリー"],
+    hard:["体に張り付くタイトな形","薄くて光沢の強い素材","小さすぎる柄や華奢すぎるアクセサリー"],fix:"ゆとりと長さを足すと取り入れやすくなります",balance:"ゆとりのある形と、長めの丈。重ね着でボリュームを出す",
+    cat:{top:"ゆとりのある形・ラフな素材・長め丈が似合いやすい傾向",bottom:"ワイドやバギーなど、ゆとりと長さのある形が似合いやすい傾向",skirt:"マキシ丈やロング丈、ラフな素材が似合いやすい傾向",one:"ゆったりしたロングワンピースが似合いやすい傾向"}}};
+const SKQ=[
+  ["二の腕や太ももをつまんだ感じ","弾力がありハリがある","やわらかくふんわり","筋や骨っぽさを感じる"],
+  ["鎖骨","あまり目立たない","細く、くっきり出ている","太く、しっかり出ている"],
+  ["手首の断面","丸に近い","平たい横長","骨がごつっと出ている"],
+  ["手のひら","厚みがある","薄くて小さめ","大きめで関節や筋が目立つ"],
+  ["ひざ","お皿が小さく目立たない","ひざ上に肉がつきやすい","お皿が大きく目立つ"],
+  ["太るときは","上半身・お腹から","下半身（腰・太もも）から","全体的に、あまり体型が変わらない"],
+  ["首","やや短め","細く長め","筋が目立つ"],
+  ["お尻","丸く高い位置にある","平たく、下がりやすい","平たく、骨盤がしっかりしている"]];
+const SEASON={
+  spring:{n:"スプリング（春）",base:"イエローベース",feel:"明るく軽やかな色が得意な傾向",
+    good:[["コーラル","#FF7F6A"],["ピーチ","#FFB38A"],["アイボリー","#FFF4DC"],["キャメル","#C68E4E"],["ライトオレンジ","#FFA94D"],["イエローグリーン","#A8D05A"],["ターコイズ","#3CC6C0"],["ベージュ","#E6CBA8"]],
+    hard:[["黒","#1B1B1B"],["グレー","#8E9196"],["ボルドー","#6E1F3A"],["くすんだ紫","#6B5B7B"]],ok:["ベージュ","オレンジ","イエロー","グリーン","ピンク","ホワイト"],ng:["ブラック","グレー","パープル"]},
+  summer:{n:"サマー（夏）",base:"ブルーベース",feel:"やわらかく、少しくすんだ涼しげな色が得意な傾向",
+    good:[["ラベンダー","#B9A7D6"],["ローズピンク","#E3A1B5"],["スカイブルー","#9CC3E6"],["ミントグリーン","#A8D8C6"],["グレージュ","#B9B0A6"],["オフホワイト","#F5F3EF"],["ネイビーグレー","#4F5B72"],["くすみブルー","#7E97B0"]],
+    hard:[["オレンジ","#E9772C"],["からし色","#C8A23A"],["こげ茶","#5A3B25"],["真っ黒","#111111"]],ok:["ピンク","ブルー","パープル","グレー","ネイビー","ホワイト"],ng:["オレンジ","イエロー","ブラウン","カーキ","ブラック"]},
+  autumn:{n:"オータム（秋）",base:"イエローベース",feel:"深みのある、落ち着いた色が得意な傾向",
+    good:[["テラコッタ","#B85C38"],["マスタード","#CFA23A"],["カーキ","#7A7650"],["ブラウン","#6E4B34"],["オリーブ","#6B6B2E"],["ワイン","#7A2E3A"],["ベージュ","#D8C6A8"],["ダークグリーン","#2F5D46"]],
+    hard:[["パステルピンク","#F6C6D6"],["真っ白","#FFFFFF"],["青みピンク","#E04F8E"],["アイスブルー","#CDE6F5"]],ok:["ブラウン","カーキ","ベージュ","オレンジ","グリーン","イエロー"],ng:["ピンク","パープル","ブルー"]},
+  winter:{n:"ウィンター（冬）",base:"ブルーベース",feel:"はっきりした色や白黒のコントラストが得意な傾向",
+    good:[["真っ白","#FFFFFF"],["黒","#111111"],["ロイヤルブルー","#2546B4"],["マゼンタ","#C2185B"],["エメラルド","#0F8F6E"],["チャコール","#3A3A3A"],["アイスグレー","#D9DEE5"],["ワインレッド","#8E1236"]],
+    hard:[["ベージュ","#D8C6A8"],["オレンジ","#E9772C"],["くすみパステル","#D9C8B8"],["キャメル","#C68E4E"]],ok:["ブラック","ホワイト","ネイビー","ブルー","レッド","パープル","グレー"],ng:["ベージュ","ブラウン","オレンジ","カーキ","イエロー"]}};
+const PCQ=[
+  ["手首の内側の血管の色","緑っぽい","青っぽい",1],
+  ["似合うと言われるアクセサリー","ゴールド","シルバー",1],
+  ["日焼けすると","すぐ黒くなりやすい","赤くなって戻りやすい",1],
+  ["肌の色の印象","黄みがある","ピンクみがある",1],
+  ["瞳の色","明るい茶色","黒〜こげ茶",1],
+  ["白いTシャツなら","生成り・オフホワイトが似合う","真っ白が似合う",1],
+  ["全体の印象","明るく軽やかと言われる","大人っぽく落ち着いていると言われる",2],
+  ["髪・瞳と肌の色の差","やわらかい（差が小さい）","はっきりしている（差が大きい）",3]];
+function skeletonResult(ans,body){const sc={straight:0,wave:0,natural:0};const keys=["straight","wave","natural"];
+  ans.forEach(a=>{if(a!=null)sc[keys[a]]+=1});
+  const {out}=bodyFeatures(body||{});const ks=new Set(out.map(f=>f.k));
+  if(ks.has("upperVol"))sc.straight+=.5;if(ks.has("lowerVol")||ks.has("curveLarge"))sc.wave+=.5;if(ks.has("shoulderWide")&&ks.has("curveSmall"))sc.natural+=.5;
+  const order=keys.slice().sort((a,b)=>sc[b]-sc[a]);const gap=sc[order[0]]-sc[order[1]];
+  return {type:order[0],second:gap<=1?order[1]:null,scores:sc}}
+function pcolorResult(ans){let y=0,b=0;for(let i=0;i<6;i++){if(ans[i]===0)y++;else if(ans[i]===1)b++}
+  const yellow=y>=b;const light=ans[6]!==1;const soft=ans[7]!==1;
+  const season=yellow?(light?"spring":"autumn"):(soft&&light?"summer":"winter");return {season,y,b,close:Math.abs(y-b)<=1}}
+function typePanel(p){const sk=p.skeleton,pc=p.pcolor;const S1=sk?.type?SKEL[sk.type]:null;const P1=pc?.season?SEASON[pc.season]:null;
+  return `<div class="panel"><h2>骨格とパーソナルカラー（参考）</h2>
+   ${S1?`<div class="sugg"><h3>骨格：${S1.n}の傾向${sk.second?`（${SKEL[sk.second].n}寄り）`:""}</h3><p class="note" style="margin:0 0 6px">${esc(S1.feel)}</p>
+     <dl><dt>似合いやすい</dt><dd>${esc(S1.good.join("、"))}</dd><dt>苦手になりやすい</dt><dd>${esc(S1.hard.join("、"))}</dd><dt>取り入れ方</dt><dd>${esc(S1.fix)}</dd><dt>バランス</dt><dd>${esc(S1.balance)}</dd></dl></div>`
+    :`<p style="margin:0 0 6px;font-size:14px">骨格：まだチェックしていません</p>`}
+   <button class="btn sm" style="margin:8px 0 14px" data-act="skelCheck">${S1?"骨格チェックをやり直す":"骨格セルフチェック（8問）"}</button>
+   ${P1?`<div class="sugg"><h3>カラー：${P1.n}の傾向（${P1.base}）</h3><p class="note" style="margin:0 0 8px">${esc(P1.feel)}${pc.close?"。ベースの判定が近いため、どちらの色も試してみてください":""}</p>
+     <p class="note" style="margin:0 0 4px">得意な色</p><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${P1.good.map(([n,h])=>`<span class="chip" style="pointer-events:none"><i class="sw" style="background:${h};width:16px;height:16px"></i>${esc(n)}</span>`).join("")}</div>
+     <p class="note" style="margin:0 0 4px">顔まわりでは気をつけたい色</p><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${P1.hard.map(([n,h])=>`<span class="chip" style="pointer-events:none"><i class="sw" style="background:${h};width:16px;height:16px"></i>${esc(n)}</span>`).join("")}</div>
+     <p class="note" style="margin:0">苦手な色も、ボトムス・靴・バッグなど顔から離れた場所なら取り入れやすくなります。</p></div>`
+    :`<p style="margin:0 0 6px;font-size:14px">パーソナルカラー：まだチェックしていません</p>`}
+   <button class="btn sm" style="margin-top:8px" data-act="pcCheck">${P1?"カラーチェックをやり直す":"パーソナルカラー セルフチェック（8問）"}</button>
+   <p class="note" style="margin:12px 0 0">どちらもセルフチェックと寸法からの参考です。診断の専門家による判定ではありません。似合う・似合わないを決めるものではないので、好きな服を楽しむヒントにしてください。</p></div>`}
+function quizSheet({title,qs,prev,intro,onDone}){const ans=prev?.slice()||qs.map(()=>null);
+  const body=()=>`<p class="note" style="margin:0 0 12px">${esc(intro)}</p>${qs.map((q,i)=>`<div class="field"><span class="lbl" style="color:var(--ink);font-size:13.5px;font-weight:700">${i+1}. ${esc(q[0])}</span><div class="chips wrap" style="margin:0">${q.slice(1).filter(x=>typeof x==="string").map((o,k)=>`<button class="chip" data-qa="${i}" data-v="${k}" aria-pressed="${ans[i]===k}">${esc(o)}</button>`).join("")}<button class="chip" data-qa="${i}" data-v="-1" aria-pressed="${ans[i]===-1}">わからない</button></div></div>`).join("")}`;
+  const foot=()=>`<button class="btn" data-act="closeSheet">やめる</button><button class="btn primary" data-qdone="1" ${ans.filter(a=>a!=null).length<qs.length?"disabled":""}>結果を見る</button>`;
+  const w=openSheet({title,body:body(),foot:foot()});
+  w.addEventListener("click",e=>{const b=e.target.closest("[data-qa]");if(b){ans[+b.dataset.qa]=+b.dataset.v;setSheet(w,{body:body(),foot:foot()});return}
+    if(e.target.closest("[data-qdone]")){closeSheet();onDone(ans.map(a=>a===-1?null:a),ans)}})}
+function lookCheck(it){const p=prof();const rows=[];const P1=p.pcolor?.season?SEASON[p.pcolor.season]:null;const S1=p.skeleton?.type?SKEL[p.skeleton.type]:null;
+  if(P1&&it.color){const near=["tops","outer","onepiece","acc"].includes(it.category);
+    if(P1.ok.includes(it.color))rows.push(`<div class="fitrow"><span class="st ok">色</span><div>${esc(it.color)}は${esc(P1.n)}の得意な色の系統<small>パーソナルカラーのセルフチェックより</small></div></div>`);
+    else if(P1.ng.includes(it.color))rows.push(`<div class="fitrow"><span class="st warn">色</span><div>${esc(it.color)}は${esc(P1.n)}では${near?"顔まわりで気をつけたい":"取り入れ方しだい"}の系統<small>${near?"首元に得意な色のインナーや小物を合わせると取り入れやすくなります":"顔から離れたアイテムなので取り入れやすい位置です"}</small></div></div>`);
+    else rows.push(`<div class="fitrow"><span class="st info">色</span><div>${esc(it.color)}はどちらとも言えない色<small>合わせる色で印象が変わります</small></div></div>`)}
+  if(S1){const g={tops:"top",outer:"top",pants:"bottom",skirt:"skirt",onepiece:"one"}[it.category];
+    if(g)rows.push(`<div class="fitrow"><span class="st info">形</span><div>${esc(S1.n)}の傾向：${esc(S1.cat[g])}<small>素材やデザインは写真で確かめてください</small></div></div>`)}
+  if(!rows.length)return `<div class="fitrow"><span class="st na">未判定</span><div style="font-size:13px">「Myサイズ」で骨格とパーソナルカラーのセルフチェックをすると、ここに色と形の相性（参考）が出ます。${!P1&&S1?"":""}</div></div>`;
+  return rows.join("")}
 /* ===== 寸法の相性（AIなし・計算のみ） ===== */
 function gVal(row,k){const e=row?.m?.[k];const v=toNum(e?.v);if(v==null)return null;return GF[k].t?(e.mode==="round"?v:v*2):v}
 function rowOf(it){const r=it.rows||[];return r[it.kind==="wish"?(it.selRow??0):0]||r[0]||{label:"",m:{}}}
@@ -818,8 +905,8 @@ function refCompare(it,row){const ref=S.items.find(x=>x.kind==="closet"&&x.isRef
   const rr=rowOf(ref);const keys=CAT[it.category]?.f||[];const lines=keys.map(k=>{const a=gVal(row,k),bv=gVal(rr,k);return {k,a,b:bv,d:(a!=null&&bv!=null)?a-bv:null}});
   return {ref,lines}}
 function fitPanel(it,rowIdx){const row=rowIdx!=null?(it.rows||[])[rowIdx]:rowOf(it);const fc=fitCheck(it,row);const rc=refCompare(it,row);const pref=prof().fitPref;
-  return `<p class="note" style="margin:0 0 4px">見た目の相性</p>
-   <div class="fitrow" style="margin-bottom:14px"><span class="st na">未判定</span><div style="font-size:13px">AIを接続していないため判定していません。体型の特徴からの一般的な提案は「Myサイズ」で見られます。</div></div>
+  return `<p class="note" style="margin:0 0 4px">見た目の相性（参考）</p>
+   <div class="fit" style="margin-bottom:14px">${lookCheck(it)}</div>
    <p class="note" style="margin:0 0 4px">寸法上のフィット（目安）${row?.label?` ・ サイズ ${esc(row.label)}`:""}</p>
    <div class="fit">${fc.map(f=>`<div class="fitrow"><span class="st ${f.status}">${esc(f.label)}</span><div>${f.status==="na"?`${esc(f.text)}<small>${esc(f.sub||"")}</small>`:`${esc(f.sub||"")}<small>${esc(f.text)}</small>`}</div></div>`).join("")}</div>
    ${rc?`<p class="note" style="margin:14px 0 4px">基準アイテム「${esc(rc.ref.name||CAT[rc.ref.category]?.l)}」との差（周囲は一周に換算）</p>
@@ -1360,6 +1447,8 @@ function aiSuggestPanel(p){const a=p.aiSuggest;
    ${a?`<p class="note" style="margin:0 0 10px">${esc(new Date(a.at).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}))} ・ ${a.photo?"寸法・好み・正面写真から":"寸法と好みから"}</p>
     ${(a.data.features||[]).length?`<div class="fit" style="margin-bottom:12px">${a.data.features.slice(0,6).map(x=>`<div class="fitrow"><span class="st info">特徴</span><div>${esc(x.text)}<small>${esc(x.reason||"")}</small></div></div>`).join("")}</div>`:""}
     ${(a.data.suggestions||[]).slice(0,5).map(c=>`<div class="sugg"><h3>${esc(c.title)}</h3><dl><dt>シルエット</dt><dd>${esc(c.silhouette||"")}</dd><dt>丈・量感</dt><dd>${esc(c.balance||"")}</dd><dt>色・組み合わせ</dt><dd>${esc(c.colors||"")}</dd><dt>理由</dt><dd>${esc(c.reason||"")}</dd></dl></div>`).join("")}
+    ${(a.data.hard||[]).length?`<div class="sugg"><h3>苦手になりやすいもの</h3><dl>${a.data.hard.slice(0,4).map(h=>`<dt>${esc(h.item||"")}</dt><dd>${esc(h.fix||"")}</dd>`).join("")}</dl></div>`:""}
+    ${a.data.colorHint&&a.data.colorHint.season?`<div class="sugg"><h3>色：${esc(a.data.colorHint.season)}の傾向（参考）</h3><dl><dt>得意な色</dt><dd>${esc(a.data.colorHint.good||"")}</dd><dt>気をつけたい色</dt><dd>${esc(a.data.colorHint.care||"")}</dd><dt>補足</dt><dd>${esc(a.data.colorHint.note||"")}</dd></dl></div>`:""}
     ${a.data.skeletonHint&&a.data.skeletonHint.type?`<p class="note" style="margin:12px 0 0">参考：骨格タイプの傾向は「${esc(a.data.skeletonHint.type)}」${a.data.skeletonHint.note?`（${esc(a.data.skeletonHint.note)}）`:""}。寸法${a.photo?"と写真":""}からの推測で、確定診断ではありません。</p>`:""}
     <p class="note" style="margin:10px 0 0">AIの提案は参考です。似合う・似合わないを決めるものではありません。</p>`
    :`<p class="note" style="margin:0">寸法・好み・目的をもとに、AIがあなた向けの提案を作ります。正面の全身写真を一緒に送ることもできます（任意）。</p>`}</div>`}
@@ -1372,15 +1461,18 @@ async function aiSuggest(){const p=prof();const hasPhoto=!!p.photos?.front;
 - 体の寸法：${bodyText2(p)}
 - 計算で分かる特徴：${out.map(x=>x.t+"（"+x.d+"）").join("、")||"なし"}${miss.length?`（不足：${miss.join("、")}）`:""}
 - 好きな色：${(p.colors||[]).join("、")||"未設定"} ／ テイスト：${(p.tastes||[]).join("、")||"未設定"} ／ 着心地：${(FITPREF.find(f=>f[0]===p.fitPref)||[])[1]||"未設定"} ／ 目的：${(p.goals||[]).join("、")||"未設定"}
+- 骨格セルフチェック：${p.skeleton?.type?SKEL[p.skeleton.type].n+"の傾向":"未実施"} ／ パーソナルカラー セルフチェック：${p.pcolor?.season?SEASON[p.pcolor.season].n+"の傾向":"未実施"}
 ${a.opt?"添付の写真は本人の正面の全身写真です。写真から分かる範囲の特徴も参考にしてください（顔立ちや肌の評価はしないでください）。":""}
 次のJSONだけを日本語で返してください。データが足りないことは正直に書いてください。
 {"features":[{"text":"寸法や写真から説明できる体の特徴（中立的な言い方で）","reason":"根拠"}],
  "suggestions":[{"title":"短い見出し","silhouette":"おすすめのシルエット","balance":"丈やボリュームのバランス","colors":"色や組み合わせ","reason":"本人の目的・好み・特徴に沿った理由"}],
- "skeletonHint":{"type":"ストレート|ウェーブ|ナチュラル|判断できない","note":"短い補足。寸法だけでは確定できないことを前提に"}}
+ "skeletonHint":{"type":"ストレート|ウェーブ|ナチュラル|判断できない","note":"短い補足。寸法だけでは確定できないことを前提に"},
+ "hard":[{"item":"苦手になりやすい服や素材","fix":"それでも着たいときの取り入れ方"}],
+ "colorHint":{"season":"スプリング|サマー|オータム|ウィンター|判断できない","good":"得意な色の例","care":"顔まわりで気をつけたい色の例","note":"根拠と注意（写真の光の条件で変わるなど）"}}
 suggestionsは3〜4件。`;
     const parts=[{text:prompt}];if(a.opt&&hasPhoto){const bl=await blobOf(p.photos.front);if(bl)parts.push(await imgPart(bl,1024))}
     const r=await AI.call(AI.models.text,parts,{json:true});const data=parseJSON(r.text);
-    p.aiSuggest={at:Date.now(),photo:!!a.opt,data:{features:Array.isArray(data.features)?data.features:[],suggestions:Array.isArray(data.suggestions)?data.suggestions:[],skeletonHint:data.skeletonHint||null}};
+    p.aiSuggest={at:Date.now(),photo:!!a.opt,data:{features:Array.isArray(data.features)?data.features:[],suggestions:Array.isArray(data.suggestions)?data.suggestions:[],skeletonHint:data.skeletonHint||null,hard:Array.isArray(data.hard)?data.hard:[],colorHint:data.colorHint||null}};
     await saveProfile(p);closeSheet();S.tab="me";render();toast("AIの提案を保存しました")}
   catch(e){setSheet(w,{body:`<p class="note">${esc(aiErr(e))}</p>`})}}
 /* コーデ提案 */
@@ -1445,6 +1537,10 @@ const ACT={
   createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render();
     if(DRIVE.available()&&!S.bk.drive.enabled){const w=openSheet({title:"消えても戻せるようにしませんか？",body:`<p style="margin:0 0 10px">データはこのスマホの中だけにあるため、ブラウザのデータを消したり機種変更したりすると消えてしまいます。</p><p style="margin:0 0 14px"><b>Googleドライブ自動保存</b>をオンにすると、変更のたびにあなたのGoogleドライブへ保存され、別のスマホや開き方でも「Googleドライブから戻す」で元通りにできます。</p><p class="note" style="margin:0">保存先はあなた自身のGoogleドライブだけです。作った人には届きません。</p>`,foot:`<button class="btn" data-act="closeSheet">あとで</button><button class="btn primary" data-act="driveSetup">オンにする</button>`})}},
   sample:()=>createSample(),
+  skelCheck:()=>{const p=prof();quizSheet({title:"骨格セルフチェック",qs:SKQ,prev:p.skeleton?.raw,intro:"鏡を見たり、触って確かめながら、いちばん近いものを選んでください。わからないものは「わからない」でOKです。",
+    onDone:async(ans,raw)=>{p.skeleton={...skeletonResult(ans,p.body),raw,at:Date.now()};await saveProfile(p);render();toast(`${SKEL[p.skeleton.type].n}の傾向が出ました（参考）`)}})},
+  pcCheck:()=>{const p=prof();quizSheet({title:"パーソナルカラー セルフチェック",qs:PCQ,prev:p.pcolor?.raw,intro:"自然光の下で、すっぴんに近い状態で確かめるのがおすすめです。わからないものは「わからない」でOKです。",
+    onDone:async(ans,raw)=>{p.pcolor={...pcolorResult(ans),raw,at:Date.now()};await saveProfile(p);render();toast(`${SEASON[p.pcolor.season].n}の傾向が出ました（参考）`)}})},
   aiSaveKey:async b=>{const v=($("#ai-key")?.value||"").trim();if(!v){toast("APIキーを貼ってください");return}b.disabled=true;b.textContent="確認しています…";
     try{const m=await AI.detect(v);if(!m.text){toast("このキーで使えるモデルが見つかりませんでした");return}AI.key=v;AI.models=m;await AI.save();while(sheets.length)closeSheet();render();settingsSheet();toast("AIを使えるようになりました")}
     catch(e){toast(e.status?"APIキーが使えませんでした。コピーし直してください":"Googleにつなげませんでした")}finally{b.disabled=false;b.textContent="保存"}},
