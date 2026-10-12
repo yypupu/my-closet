@@ -439,7 +439,8 @@ const CONFIG = {
   makerUrl: "https://y-pu.co.jp/",
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
-  version: "0.1.0（第1段階）"
+  googleClientId: "", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
+  version: "0.2.0（自動バックアップ）"
 };
 
 /* ===== デザインパターン ===== */
@@ -549,14 +550,15 @@ const DB = {
   get(n,k){return this.rq(this.d.transaction(n).objectStore(n).get(k))},
   all(n){return this.rq(this.d.transaction(n).objectStore(n).getAll())},
   byProfile(n,pid){return this.rq(this.d.transaction(n).objectStore(n).index("profileId").getAll(pid))},
-  async put(n,v){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).put(v);await this.done(tx)},
-  async putMany(n,arr){const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);arr.forEach(v=>os.put(v));await this.done(tx)},
-  async del(n,k){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).delete(k);await this.done(tx)},
-  async delMany(n,keys){if(!keys.length)return;const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);keys.forEach(k=>os.delete(k));await this.done(tx)},
+  onChange:null, ch(n){if(n!=="meta"&&this.onChange)this.onChange()},
+  async put(n,v){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).put(v);await this.done(tx);this.ch(n)},
+  async putMany(n,arr){const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);arr.forEach(v=>os.put(v));await this.done(tx);this.ch(n)},
+  async del(n,k){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).delete(k);await this.done(tx);this.ch(n)},
+  async delMany(n,keys){if(!keys.length)return;const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);keys.forEach(k=>os.delete(k));await this.done(tx);this.ch(n)},
   async clearAll(){const names=["profiles","items","outfits","blobs","meta"];const tx=this.d.transaction(names,"readwrite");names.forEach(n=>tx.objectStore(n).clear());await this.done(tx)},
   async deleteProfile(pid){const names=["items","outfits","blobs","profiles"];const tx=this.d.transaction(names,"readwrite");
     for(const n of ["items","outfits","blobs"]){const os=tx.objectStore(n);const r=os.index("profileId").getAllKeys(pid);r.onsuccess=()=>r.result.forEach(k=>os.delete(k))}
-    tx.objectStore("profiles").delete(pid);await this.done(tx)},
+    tx.objectStore("profiles").delete(pid);await this.done(tx);this.ch("profiles")},
   async restore(data,blobs){const names=["profiles","items","outfits","blobs","meta"];const tx=this.d.transaction(names,"readwrite");
     names.forEach(n=>tx.objectStore(n).clear());
     data.profiles.forEach(v=>tx.objectStore("profiles").put(v));data.items.forEach(v=>tx.objectStore("items").put(v));
@@ -585,7 +587,8 @@ async function filesToBlobs(fileList){const out=[];let failed=0;for(const f of f
   if(failed)toast(`${failed}枚の画像を読み込めませんでした。JPEGかPNGの画像を選んでください。`);return out}
 
 /* ===== 状態 ===== */
-const S = {profiles:[],pid:null,items:[],outfits:[],tab:"closet",q:"",cat:"all",wcat:"all",wsort:"want",ofilter:"all",tryItem:null,tryPhoto:"front",ready:false};
+const S = {profiles:[],pid:null,items:[],outfits:[],tab:"closet",q:"",cat:"all",wcat:"all",wsort:"want",ofilter:"all",tryItem:null,tryPhoto:"front",ready:false,bk:null,driveTap:false};
+const BK0=()=>({lastAt:null,changes:0,snoozeUntil:0,drive:{enabled:false,folderId:null,lastAt:null}});
 const prof = ()=>S.profiles.find(p=>p.id===S.pid);
 const itemById = id=>S.items.find(i=>i.id===id);
 function newProfile(name){return {id:"p_"+uid(),name:name.trim()||"プロフィール",createdAt:Date.now(),photos:{front:null,side:null,back:null},body:{},measuredAt:"",history:[],colors:[],tastes:[],fitPref:"regular",goals:[],sample:false}}
@@ -598,6 +601,9 @@ async function boot(){
   S.pid=(m&&S.profiles.some(p=>p.id===m.value))?m.value:(S.profiles[0]?.id||null);
   try{const t=localStorage.getItem("mc-tab");if(t)S.tab=t}catch(e){}
   if(S.pid)await loadProfileData();
+  const bk=await DB.get("meta","backupState");S.bk=Object.assign(BK0(),bk?.value||{});S.bk.drive=Object.assign(BK0().drive,S.bk.drive||{});
+  DB.onChange=markChanged;if(DRIVE.available())DRIVE.load().catch(()=>{});
+  if(S.bk.drive.enabled&&S.bk.changes>0)S.driveTap=true;
   S.ready=true;render()}
 async function loadProfileData(){S.items=S.pid?await DB.byProfile("items",S.pid):[];S.outfits=S.pid?await DB.byProfile("outfits",S.pid):[]}
 async function switchProfile(id){S.pid=id;await DB.put("meta",{key:"activeProfile",value:id});S.tryItem=null;S.q="";S.cat="all";await loadProfileData();render()}
@@ -610,7 +616,7 @@ function render(){
   const p=prof();$("#pname").textContent=p?p.name:"";
   $$(".tab").forEach(t=>t.setAttribute("aria-current",t.dataset.tab===S.tab?"page":"false"));
   const v={closet:viewCloset,wish:viewWish,try:viewTry,coord:viewCoord,me:viewMe}[S.tab]||viewCloset;
-  $("#main").innerHTML=v()+footer();
+  $("#main").innerHTML=bkBanner()+v()+footer();
   hydrate($("#main"));
 }
 function footer(){return `<div class="foot">データはこの端末の中だけに保存されます ・ <button data-act="about">作った人／${esc(CONFIG.makerName)}</button></div>`}
@@ -632,6 +638,10 @@ function viewWelcome(){return `<section class="hello">
     <button class="btn primary block" data-act="createFirst">プロフィールを作ってはじめる</button>
   </div>
   <div class="panel"><h2>デザインを選ぶ（あとで設定から変えられます）</h2>${stylePicker()}</div>
+  <div class="panel"><h2>前に使っていた方へ</h2><p class="note" style="margin:0 0 12px">データが消えてしまったときや、別のスマホから移るときは、バックアップから元に戻せます。</p>
+   <div class="row"><label class="btn grow filebtn">バックアップファイルから復元<input type="file" accept=".zip,application/zip" data-restore="1"></label>
+   ${DRIVE.available()?`<button class="btn grow" data-act="driveRestore">Googleドライブから復元</button>`:""}</div></div>
+  ${iosTip()}
   <p class="note" style="text-align:center">操作を試したい場合は <button class="link" data-act="sample">架空のサンプルデータで試す</button><br>（実在の人物・私物ではありません。あとから削除できます）</p>
 </section>`}
 
@@ -1031,10 +1041,12 @@ async function settingsSheet(){let est="";try{const e=await navigator.storage?.e
    <ul class="note" style="margin:0 0 10px;padding-left:18px;display:grid;gap:4px"><li>写真・寸法・服の情報は、このブラウザの中だけに保存されています。運営者には届きません。</li>
    <li>ほかの端末やブラウザとは自動で同期されません。</li><li>ブラウザのデータ削除・容量不足・アプリの削除などで消えることがあります。</li></ul>
    ${est?`<p class="note num" style="margin:0 0 10px">${est}</p>`:""}
-   <button class="btn sm" data-act="persist">消えにくくする（ブラウザに保存の継続を依頼）</button></div>
-  <div class="panel"><h2>バックアップ</h2><p class="note" style="margin:0 0 12px">写真も含めたすべてのプロフィールを、1つのZIPファイルに書き出します。別の端末で読み込めば、同じデータを使えます。</p>
-   <div class="row"><button class="btn primary grow" data-act="exportBackup">バックアップを書き出す</button>
-   <label class="btn grow filebtn">バックアップを読み込む<input type="file" accept=".zip,application/zip" id="restore-file"></label></div></div>
+   ${iosTip()}<button class="btn sm" data-act="persist">消えにくくする（ブラウザに保存の継続を依頼）</button></div>
+  ${drivePanel()}
+  <div class="panel"><h2>バックアップ（ファイル）</h2><p class="note" style="margin:0 0 6px">写真も含めたすべてのプロフィールを、1つのZIPファイルに保存します。iCloud Drive・Googleドライブ・LINEのKeepなどに置いておけば、消えても元に戻せます。</p>
+   <p class="note" style="margin:0 0 12px">最後の保存：<b>${S.bk.lastAt?new Date(S.bk.lastAt).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}):"まだありません"}</b>${S.bk.changes?` ・ その後の変更 ${S.bk.changes}件`:""}</p>
+   <div class="row"><button class="btn primary grow" data-act="quickBackup">いまバックアップする</button>
+   <label class="btn grow filebtn">バックアップから復元<input type="file" accept=".zip,application/zip" data-restore="1"></label></div></div>
   <div class="panel"><h2>AI・外部への送信</h2><p style="margin:0 0 10px;font-size:14px">いまの状態：<b>外部への送信なし</b>（AI未接続）</p>
    <div class="tbl-wrap"><table class="cmp"><tr><th></th><th>AIを使わない（いま）</th><th>AIを使う（予定）</th></tr>
    <tr><th>送るもの</th><td>なし</td><td>実行したときだけ、選んだ写真・服の画像・必要な文字情報</td></tr>
@@ -1042,8 +1054,7 @@ async function settingsSheet(){let est="";try{const e=await navigator.storage?.e
    <tr><th>費用</th><td>無料</td><td>AIの利用料（使う人の負担を予定）</td></tr></table></div></div>
   <div class="panel"><h2>危険な操作</h2><button class="btn danger block" data-act="wipeAll">この端末のデータをすべて削除</button></div>
   <div class="panel"><h2>このアプリについて</h2>${aboutHTML()}</div>`;
-  const w=openSheet({title:"設定",body});
-  $("#restore-file",w).addEventListener("change",e=>{const f=e.target.files?.[0];e.target.value="";if(f)restoreFlow(f)})}
+  openSheet({title:"設定",body})}
 function aboutHTML(){return `<dl class="kv"><dt>作った人</dt><dd>${CONFIG.makerUrl?`<a class="link" href="${esc(CONFIG.makerUrl)}" target="_blank" rel="noopener noreferrer">${esc(CONFIG.makerName)}</a>`:esc(CONFIG.makerName)}</dd>
    ${CONFIG.instagramUrl?`<dt>Instagram</dt><dd><a class="link" href="${esc(CONFIG.instagramUrl)}" target="_blank" rel="noopener noreferrer">フォローする</a></dd>`:""}
    ${CONFIG.contactUrl?`<dt>ご相談</dt><dd><a class="link" href="${esc(CONFIG.contactUrl)}" target="_blank" rel="noopener noreferrer">こんなアプリが欲しい・制作相談はこちら</a></dd>`:""}
@@ -1087,7 +1098,7 @@ async function buildBackup(){const profiles=await DB.all("profiles"),items=await
 async function exportBackup(btn){if(typeof JSZip==="undefined"){toast("バックアップ機能を読み込めませんでした。通信状態を確認して開き直してください。");return}
   btn&&(btn.disabled=true);try{const {blob,counts}=await buildBackup();const d=new Date();
     const name=`my-closet-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.zip`;
-    const r=await saveFile(name,blob);if(r==="saved"||r==="fallback"){try{localStorage.setItem("mc-lastbackup",today())}catch(e){}toast(`書き出しました（プロフィール${counts.p}件・写真${counts.b}枚）`)}else if(r==="declined")toast("保存を取りやめました")}
+    const r=await saveFile(name,blob);if(r==="saved"||r==="fallback"){await markBackedUp();toast(`書き出しました（プロフィール${counts.p}件・写真${counts.b}枚）`)}else if(r==="declined")toast("保存を取りやめました")}
   catch(e){toast("書き出しに失敗しました")}finally{btn&&(btn.disabled=false)}}
 async function parseBackup(file){const zip=await JSZip.loadAsync(file);const dj=zip.file("data.json");if(!dj)throw new Error("format");
   const data=JSON.parse(await dj.async("string"));if(data.app!=="my-closet"||!Array.isArray(data.profiles))throw new Error("format");
@@ -1099,13 +1110,104 @@ async function restoreFlow(file){if(typeof JSZip==="undefined"){toast("バック
   const ok=await confirmDialog({title:"このバックアップで置き換えますか？",body:`バックアップの内容：プロフィール${data.profiles.length}件・服${data.items.length}点・コーデ${data.outfits.length}件・写真${blobs.length}枚${missing?`（写真${missing}枚が見つかりません）`:""}\n書き出し日時：${data.exportedAt?new Date(data.exportedAt).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}):"不明"}\n\nいまこの端末にあるデータはすべて消え、バックアップの内容に置き換わります。`,ok:"置き換える",danger:true});
   if(!ok)return;try{await DB.restore(data,blobs)}catch(e){toast("復元に失敗しました。端末の空き容量を確認してください。");return}
   clearURLs();while(sheets.length)closeSheet();S.profiles=(await DB.all("profiles")).sort((a,b)=>a.createdAt-b.createdAt);
-  S.pid=S.profiles.some(p=>p.id===data.activeProfile)?data.activeProfile:(S.profiles[0]?.id||null);await loadProfileData();render();toast("バックアップから復元しました")}
+  S.pid=S.profiles.some(p=>p.id===data.activeProfile)?data.activeProfile:(S.profiles[0]?.id||null);await loadProfileData();
+  S.bk.changes=0;S.bk.lastAt=S.bk.lastAt||Date.now();await saveBk();render();toast("バックアップから復元しました");return true}
+
+/* ===== 自動バックアップ（変更の記録・声かけ・共有保存・Googleドライブ） ===== */
+async function saveBk(){try{await DB.put("meta",{key:"backupState",value:S.bk})}catch(e){}}
+let bkSaveT;
+let lastMark=0;
+function markChanged(){if(!S.bk)return;if(Date.now()-lastMark>700)S.bk.changes++;lastMark=Date.now();clearTimeout(bkSaveT);bkSaveT=setTimeout(saveBk,400);scheduleDrive()}
+async function markBackedUp(){S.bk.lastAt=Date.now();S.bk.changes=0;S.bk.snoozeUntil=0;await saveBk()}
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const isStandalone=()=>!!(navigator.standalone||window.matchMedia?.("(display-mode: standalone)").matches);
+function iosTip(){if(!isIOS()||isStandalone()||window.claude)return "";return `<div class="notice"><b>iPhoneの方へ：ホーム画面に追加してください</b>Safariの共有ボタン →「ホーム画面に追加」から開くと、しばらく使わなくてもデータが消えにくくなります。</div>`}
+function bkNeedNudge(){const b=S.bk;if(!b||!S.profiles.length||!b.changes)return false;if(Date.now()<(b.snoozeUntil||0))return false;
+  if(b.drive.enabled)return false;
+  if(!b.lastAt)return b.changes>=5;
+  return Date.now()-b.lastAt>7*864e5||b.changes>=20}
+function bkBanner(){const b=S.bk;if(!b)return "";
+  if(b.drive.enabled&&S.driveTap&&b.changes>0)return `<div class="notice" style="margin-top:12px"><b>Googleドライブに保存していない変更があります（${b.changes}件）</b>タップするとGoogleドライブにバックアップします。<div class="row" style="margin-top:10px"><button class="btn sm primary" data-act="driveNow">Googleドライブに保存</button></div></div>`;
+  if(!bkNeedNudge())return "";
+  const days=b.lastAt?Math.floor((Date.now()-b.lastAt)/864e5):null;
+  return `<div class="notice warn" style="margin-top:12px"><b>バックアップしておこう</b>${days==null?"まだ一度もバックアップしていません。":`最後のバックアップは${days}日前です。`}データはこのスマホの中だけにあるので、ブラウザの「履歴とWebサイトデータを消去」をすると消えてしまいます。
+   <div class="row" style="margin-top:10px"><button class="btn sm primary" data-act="quickBackup">いま保存する</button>${DRIVE.available()?`<button class="btn sm" data-act="driveSetup">Googleドライブに自動保存</button>`:""}<button class="link" data-act="snoozeBk">あとで</button></div></div>`}
+function backupName(){const d=new Date(),z=n=>String(n).padStart(2,"0");return `my-closet-backup-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.zip`}
+async function quickBackup(){if(typeof JSZip==="undefined"){toast("バックアップ機能を読み込めませんでした。通信状態を確認して開き直してください。");return}
+  const w=openSheet({title:"バックアップを保存",body:`<p class="note">保存用のファイルを作っています…</p>`});
+  let built;try{built=await buildBackup()}catch(e){setSheet(w,{body:`<p class="note">ファイルを作れませんでした。もう一度お試しください。</p>`});return}
+  const name=backupName();const file=new File([built.blob],name,{type:"application/zip"});
+  const canShare=!window.claude&&navigator.canShare&&(()=>{try{return navigator.canShare({files:[file]})}catch(e){return false}})();
+  const mb=(built.blob.size/1048576).toFixed(1);
+  setSheet(w,{body:`<p style="margin:0 0 6px">プロフィール${built.counts.p}件・服${built.counts.i}点・写真${built.counts.b}枚（約${mb}MB）</p>
+   <p class="note" style="margin:0 0 14px">${canShare?(isIOS()?"「”ファイル”に保存」→「iCloud Drive」を選ぶのがおすすめです。LINEのKeepやGoogleドライブアプリにも送れます。":"Googleドライブや、LINEのKeepなどに保存できます。"):"ファイルとしてダウンロードします。iCloud DriveやGoogleドライブなど、スマホの外にも置いておくと安心です。"}</p>
+   <div style="display:grid;gap:10px">${canShare?`<button class="btn primary block" data-bk="share">保存先を選んで保存</button>`:""}<button class="btn ${canShare?"":"primary"} block" data-bk="dl">ダウンロード</button></div>
+   ${DRIVE.available()&&!S.bk.drive.enabled?`<p class="note" style="margin:14px 0 0">毎回の操作が面倒なら <button class="link" data-act="driveSetup">Googleドライブに自動保存</button> がおすすめです。</p>`:""}`});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-bk]");if(!t)return;
+    if(t.dataset.bk==="share"){try{await navigator.share({files:[file],title:"Myクローゼット バックアップ"});await markBackedUp();closeSheet();render();toast("バックアップを保存しました")}catch(err){if(err?.name!=="AbortError")toast("保存できませんでした。ダウンロードをお試しください")}}
+    else{const r=await saveFile(name,built.blob);if(r==="saved"||r==="fallback"){await markBackedUp();closeSheet();render();toast("バックアップをダウンロードしました")}else if(r==="declined")toast("保存を取りやめました")}})}
+/* Googleドライブ：利用者本人のドライブに、アプリが作ったファイルだけを読み書きする（drive.file） */
+const DRIVE={token:null,exp:0,folderName:"Myクローゼット バックアップ",busy:false,
+  available(){return !!CONFIG.googleClientId&&!window.claude},
+  load(){if(window.google?.accounts?.oauth2)return Promise.resolve();if(this._lp)return this._lp;
+    this._lp=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://accounts.google.com/gsi/client";sc.async=true;sc.onload=()=>res();sc.onerror=()=>{this._lp=null;rej(new Error("load"))};document.head.appendChild(sc)});return this._lp},
+  valid(){return !!this.token&&Date.now()<this.exp-60000},
+  async auth(consent){await this.load();return new Promise((res,rej)=>{const c=google.accounts.oauth2.initTokenClient({client_id:CONFIG.googleClientId,scope:"https://www.googleapis.com/auth/drive.file",
+      callback:r=>{if(r.error){rej(new Error(r.error));return}this.token=r.access_token;this.exp=Date.now()+(Number(r.expires_in)||3600)*1000;res()},
+      error_callback:e=>rej(new Error(e?.type||"popup"))});c.requestAccessToken({prompt:consent?"consent":""})})},
+  async api(path,opt={}){const r=await fetch(path.startsWith("http")?path:"https://www.googleapis.com/drive/v3/"+path,{...opt,headers:{...(opt.headers||{}),Authorization:"Bearer "+this.token}});
+    if(r.status===401){this.token=null;throw new Error("auth")}if(!r.ok)throw new Error("http "+r.status);return r},
+  async folder(){const d=S.bk.drive;if(d.folderId){try{const j=await (await this.api(`files/${d.folderId}?fields=id,trashed`)).json();if(!j.trashed)return j.id}catch(e){if(e.message==="auth")throw e}}
+    const q=encodeURIComponent(`name='${this.folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    let id=(await (await this.api(`files?q=${q}&fields=files(id)`)).json()).files?.[0]?.id;
+    if(!id)id=(await (await this.api("files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:this.folderName,mimeType:"application/vnd.google-apps.folder"})})).json()).id;
+    d.folderId=id;await saveBk();return id},
+  async list(){const fid=await this.folder();const q=encodeURIComponent(`'${fid}' in parents and trashed=false`);
+    return (await (await this.api(`files?q=${q}&orderBy=createdTime desc&fields=files(id,name,createdTime,size)&pageSize=20`)).json()).files||[]},
+  async upload(blob,name){const fid=await this.folder();
+    const init=await this.api("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id",{method:"POST",headers:{"Content-Type":"application/json; charset=UTF-8","X-Upload-Content-Type":"application/zip"},body:JSON.stringify({name,parents:[fid],mimeType:"application/zip"})});
+    const loc=init.headers.get("Location");if(!loc)throw new Error("location");
+    const r=await fetch(loc,{method:"PUT",headers:{"Content-Type":"application/zip"},body:blob});if(!r.ok)throw new Error("upload "+r.status);
+    try{const fl=await this.list();for(const f of fl.slice(5))await this.api("files/"+f.id,{method:"DELETE"}).catch(()=>{})}catch(e){}},
+  async download(id){return await (await this.api(`files/${id}?alt=media`)).blob()},
+  revoke(){try{if(this.token&&window.google?.accounts?.oauth2)google.accounts.oauth2.revoke(this.token,()=>{})}catch(e){}this.token=null}
+};
+let driveT;
+function scheduleDrive(){if(!S.bk?.drive.enabled)return;clearTimeout(driveT);driveT=setTimeout(()=>driveBackupNow(false),15000)}
+async function driveBackupNow(interactive){if(!S.bk.drive.enabled||DRIVE.busy)return;
+  if(!DRIVE.valid()){if(!interactive){S.driveTap=true;render();return}try{await DRIVE.auth(false)}catch(e){toast("Googleにつなげませんでした。もう一度お試しください");return}}
+  DRIVE.busy=true;if(interactive)toast("Googleドライブに保存しています…");
+  try{const changesAtStart=S.bk.changes;const {blob}=await buildBackup();await DRIVE.upload(blob,backupName());
+    S.bk.drive.lastAt=Date.now();S.bk.lastAt=Date.now();S.bk.changes=Math.max(0,S.bk.changes-changesAtStart);S.driveTap=S.bk.changes>0;await saveBk();
+    if(interactive)toast("Googleドライブに保存しました");if(!sheets.length)render()}
+  catch(e){if(e.message==="auth"){S.driveTap=true;if(!sheets.length)render()}else if(interactive)toast("Googleドライブに保存できませんでした。通信状態を確認してください")}
+  finally{DRIVE.busy=false}}
+function drivePanel(){if(!DRIVE.available())return "";const d=S.bk.drive;
+  return d.enabled?`<div class="panel"><h2>Googleドライブ自動バックアップ</h2>
+   <p style="margin:0 0 6px;font-size:14px"><span class="st ok">オン</span> 服や寸法を変更すると、あなたのGoogleドライブに自動で保存します</p>
+   <p class="note" style="margin:0 0 12px">最後の保存：${d.lastAt?new Date(d.lastAt).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}):"まだありません"} ・ 保存先：マイドライブ「${DRIVE.folderName}」（最新5件を残します）</p>
+   <div class="row"><button class="btn primary grow" data-act="driveNow">いま保存する</button><button class="btn grow" data-act="driveRestore">ここから復元</button></div>
+   <p class="note" style="margin:12px 0 0">Googleへの接続は約1時間で切れます。切れているときに変更があると、画面の上に「Googleドライブに保存」ボタンが出ます。 <button class="link" data-act="driveOff">自動保存をやめる</button></p></div>`
+  :`<div class="panel"><h2>Googleドライブ自動バックアップ</h2>
+   <p class="note" style="margin:0 0 12px">一度つなぐと、変更のたびにあなたのGoogleドライブへ自動で保存します。ブラウザのデータを消してしまっても、ここから元に戻せます。</p>
+   <button class="btn primary block" data-act="driveSetup">Googleドライブとつなぐ</button></div>`}
+async function driveSetup(){while(sheets.length)closeSheet();
+  const ok=await confirmDialog({title:"Googleドライブに自動保存しますか？",body:"写真・寸法・服などすべてのデータを、あなたのGoogleドライブの「Myクローゼット バックアップ」フォルダに保存します。\n\n・保存先はあなた自身のドライブだけです。作った人（Y-PU）には届きません\n・このアプリが作ったファイル以外は読みません\n・変更があったときに自動で保存し、最新5件を残します\n・設定からいつでもやめられます",ok:"Googleでつなぐ"});
+  if(!ok)return;try{await DRIVE.auth(true)}catch(e){toast("Googleにつなげませんでした");return}
+  S.bk.drive.enabled=true;await saveBk();render();await driveBackupNow(true)}
+async function driveRestore(){if(!DRIVE.available())return;
+  try{if(!DRIVE.valid())await DRIVE.auth(false)}catch(e){toast("Googleにつなげませんでした");return}
+  let files;try{files=await DRIVE.list()}catch(e){toast("Googleドライブを読めませんでした");return}
+  if(!files.length){await confirmDialog({title:"バックアップが見つかりません",body:`このGoogleアカウントのドライブに「${DRIVE.folderName}」のバックアップがありません。別のGoogleアカウントで保存していないか確認してください。`,ok:"OK",cancel:"閉じる"});return}
+  const w=openSheet({title:"Googleドライブから復元",body:`<p class="note" style="margin:0 0 10px">戻したいバックアップを選んでください（新しい順）。</p><div class="mlist">${files.map(f=>`<div class="mrow"><div class="nm">${esc(new Date(f.createdTime).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}))}<small>${f.size?(f.size/1048576).toFixed(1)+"MB":""}</small></div><button class="btn sm" data-dr="${esc(f.id)}">これに戻す</button></div>`).join("")}</div>`});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-dr]");if(!t)return;t.disabled=true;t.textContent="読み込み中…";
+    try{const blob=await DRIVE.download(t.dataset.dr);if(await restoreFlow(blob)){S.bk.drive.enabled=true;await saveBk();render()}}catch(err){toast("ダウンロードできませんでした");t.disabled=false;t.textContent="これに戻す"}})}
 function wipeFlow(){const w=openSheet({title:"すべて削除",body:`<div class="notice warn"><b>元に戻せません</b>この端末に保存されている、すべてのプロフィールの写真・寸法・服・コーデを削除します。必要なら先にバックアップを書き出してください。</div>
    <div class="field"><label for="wipe-in">確認のため「削除する」と入力してください</label><input class="inp" id="wipe-in" autocomplete="off"></div>`,
    foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn danger" id="wipe-go" disabled>すべて削除</button>`});
   const inp=$("#wipe-in",w),go=$("#wipe-go",w);inp.addEventListener("input",()=>{go.disabled=inp.value.trim()!=="削除する"});
   go.addEventListener("click",async()=>{await DB.clearAll();clearURLs();try{localStorage.removeItem("mc-tab");localStorage.removeItem("mc-lastbackup")}catch(e){}
-    while(sheets.length)closeSheet();S.profiles=[];S.pid=null;S.items=[];S.outfits=[];S.tab="closet";render();toast("すべて削除しました")})}
+    while(sheets.length)closeSheet();S.profiles=[];S.pid=null;S.items=[];S.outfits=[];S.tab="closet";S.bk=BK0();S.driveTap=false;render();toast("すべて削除しました")})}
 
 /* ===== 架空のサンプル ===== */
 async function sampleImage(kind,color,label){const c=document.createElement("canvas");c.width=600;c.height=750;const x=c.getContext("2d");
@@ -1133,7 +1235,7 @@ async function createSample(){const p=newProfile("サンプル（架空）");p.s
   const shoes=await mk("closet","shoes","ブラック","#1B1B1B","黒のローファー",{size:"23.5",rows:[{label:"",m:{footLen:{v:23.5},heel:{v:3}}}]});
   await mk("wish","outer","ベージュ","#C8B48F","トレンチコート",{price:18900,priceAt:today(),wantLevel:4,wishSize:"M",selRow:1,notes:"架空のサンプルです。サイズ表の「M」を購入候補にしています。",rows:[{label:"S",m:{shoulder:{v:41},bodyWidth:{v:54,mode:"flat"},length:{v:100},sleeve:{v:57}}},{label:"M",m:{shoulder:{v:43},bodyWidth:{v:57,mode:"flat"},length:{v:104},sleeve:{v:59}}},{label:"L",m:{shoulder:{v:45},bodyWidth:{v:60,mode:"flat"},length:{v:108},sleeve:{v:61}}}]});
   await DB.put("outfits",{id:"o_"+uid(),profileId:p.id,name:"週末のカフェ（サンプル）",purpose:"普段",slots:{tops:[shirt.id],bottoms:[denim.id],shoes:[shoes.id],bag:[],acc:[]},favorite:true,notes:"",createdAt:Date.now(),updatedAt:Date.now()});
-  await DB.put("meta",{key:"activeProfile",value:p.id});await loadProfileData();S.tab="closet";render();toast("架空のサンプルを作りました")}
+  await DB.put("meta",{key:"activeProfile",value:p.id});await loadProfileData();S.bk.changes=0;await saveBk();S.tab="closet";render();toast("架空のサンプルを作りました")}
 
 /* ===== 操作 ===== */
 const ACT={
@@ -1141,7 +1243,7 @@ const ACT={
   closeSheet:()=>closeSheet(),
   settings:()=>settingsSheet(), profiles:()=>profilesSheet(),
   about:()=>openSheet({title:"このアプリについて",body:aboutHTML()}),
-  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);await switchProfile(p.id);S.tab="me";render()},
+  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);try{navigator.storage?.persist?.()}catch(e){}await switchProfile(p.id);S.tab="me";render()},
   sample:()=>createSample(),
   setStyle:b=>{applyStyle(b.dataset.v);render();$$(".sty").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===b.dataset.v))},
   cat:b=>{S.cat=b.dataset.v;$("#closet-chips").innerHTML=catChips(S.items.filter(i=>i.kind==="closet"),S.cat,"cat");$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))},
@@ -1169,13 +1271,17 @@ const ACT={
   guide:b=>measureGuide(b.dataset.k), guideOnly:b=>guideOnly(b.dataset.k),
   bodyEdit:()=>bodyEditor(), prefEdit:()=>prefEditor(), photoGuide:()=>photoGuide(), garmentGuide:()=>garmentGuide(),
   rmBodyPhoto:async b=>{const p=prof();const k=b.dataset.v;if(!await confirmDialog({title:"この写真を外しますか？",body:"端末からも削除されます。",ok:"外す",danger:true}))return;await deleteBlobs([p.photos[k]]);p.photos[k]=null;await saveProfile(p);render()},
-  exportBackup:b=>exportBackup(b),
+  exportBackup:()=>quickBackup(), quickBackup:()=>quickBackup(),
+  snoozeBk:async()=>{S.bk.snoozeUntil=Date.now()+864e5;await saveBk();render()},
+  driveSetup:()=>driveSetup(), driveNow:()=>driveBackupNow(true), driveRestore:()=>driveRestore(),
+  driveOff:async()=>{if(!await confirmDialog({title:"自動保存をやめますか？",body:"Googleドライブにある今までのバックアップは消えません。",ok:"やめる"}))return;S.bk.drive.enabled=false;S.driveTap=false;DRIVE.revoke();await saveBk();while(sheets.length)closeSheet();render();toast("自動保存をやめました")},
   wipeAll:()=>wipeFlow(),
   persist:async()=>{try{const r=await navigator.storage?.persist?.();toast(r?"このブラウザに保存の継続を依頼しました":"この環境では依頼できませんでした。バックアップをおすすめします")}catch(e){toast("この環境では依頼できませんでした。バックアップをおすすめします")}}
 };
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b,e)}});
 document.addEventListener("input",e=>{if(e.target.id==="closet-q"){S.q=e.target.value;$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheets.length&&!$(".modal-wrap"))closeSheet();if(e.key==="Enter"&&e.target.id==="w-name")ACT.createFirst()});
+document.addEventListener("change",e=>{if(e.target.dataset?.restore){const f=e.target.files?.[0];e.target.value="";if(f)restoreFlow(f)}});
 document.addEventListener("change",async e=>{const k=e.target.dataset?.bodyphoto;if(!k||!e.target.files?.[0])return;const [blob]=await filesToBlobs([e.target.files[0]]);e.target.value="";if(!blob)return;
   const p=prof();const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
 boot();
