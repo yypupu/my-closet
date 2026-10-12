@@ -1053,6 +1053,7 @@ async function settingsSheet(){let est="";try{const e=await navigator.storage?.e
 function aboutHTML(){return `<dl class="kv"><dt>作った人</dt><dd>${CONFIG.makerUrl?`<a class="link" href="${esc(CONFIG.makerUrl)}" target="_blank" rel="noopener noreferrer">${esc(CONFIG.makerName)}</a>`:esc(CONFIG.makerName)}</dd>
    ${CONFIG.instagramUrl?`<dt>Instagram</dt><dd><a class="link" href="${esc(CONFIG.instagramUrl)}" target="_blank" rel="noopener noreferrer">フォローする</a></dd>`:""}
    ${CONFIG.contactUrl?`<dt>ご相談</dt><dd><a class="link" href="${esc(CONFIG.contactUrl)}" target="_blank" rel="noopener noreferrer">こんなアプリが欲しい・制作相談はこちら</a></dd>`:""}
+   <dt>プライバシー</dt><dd><a class="link" href="https://yypupu.github.io/my-closet/privacy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a></dd>
    <dt>バージョン</dt><dd class="num">${esc(CONFIG.version)}</dd></dl>
    <p class="note" style="margin:10px 0 0">無料で使えます。フォローや登録は必要ありません。</p>`}
 function profilesSheet(){const body=()=>`<div class="mlist">${S.profiles.map(p=>`<div class="mrow"><div class="nm">${esc(p.name)}${p.sample?"<small>架空のサンプル</small>":""}</div>
