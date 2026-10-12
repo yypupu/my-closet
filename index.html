@@ -428,8 +428,8 @@ details.help ul{margin:8px 0 2px;padding-left:18px}
 "use strict";
 /* ===== 配布時に設定する項目（未設定のものは画面に出ません） ===== */
 const CONFIG = {
-  makerName: "Y-PU",
-  makerUrl: "https://y-pu.co.jp/",
+  makerName: "Y",
+  makerUrl: "",
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
   googleClientId: "605902820361-6a6tnohfop355db503aaa2m5frlavlun.apps.googleusercontent.com", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
@@ -1188,7 +1188,7 @@ function drivePanel(){if(!DRIVE.available())return "";const d=S.bk.drive;
    <p class="note" style="margin:0 0 12px">一度つなぐと、変更のたびにあなたのGoogleドライブへ自動で保存します。ブラウザのデータを消してしまっても、ここから元に戻せます。</p>
    <button class="btn primary block" data-act="driveSetup">Googleドライブとつなぐ</button></div>`}
 async function driveSetup(){while(sheets.length)closeSheet();
-  const ok=await confirmDialog({title:"Googleドライブに自動保存しますか？",body:"写真・寸法・服などすべてのデータを、あなたのGoogleドライブの「Myクローゼット バックアップ」フォルダに保存します。\n\n・保存先はあなた自身のドライブだけです。作った人（Y-PU）には届きません\n・このアプリが作ったファイル以外は読みません\n・変更があったときに自動で保存し、最新5件を残します\n・設定からいつでもやめられます",ok:"Googleでつなぐ"});
+  const ok=await confirmDialog({title:"Googleドライブに自動保存しますか？",body:"写真・寸法・服などすべてのデータを、あなたのGoogleドライブの「Myクローゼット バックアップ」フォルダに保存します。\n\n・保存先はあなた自身のドライブだけです。作った人には届きません\n・このアプリが作ったファイル以外は読みません\n・変更があったときに自動で保存し、最新5件を残します\n・設定からいつでもやめられます",ok:"Googleでつなぐ"});
   if(!ok)return;try{await DRIVE.auth(true)}catch(e){toast("Googleにつなげませんでした");return}
   S.bk.drive.enabled=true;await saveBk();render();await driveBackupNow(true)}
 async function driveRestore(){if(!DRIVE.available())return;
