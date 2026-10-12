@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FFE14D">
+<meta name="description" content="手持ちの服・ほしい物・自分のサイズを、端末の中だけに保存して管理できる無料のファッションアプリ">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Myクローゼット">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px)}</style>
+</head>
+<body>
+<title>Myクローゼット</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bodoni+Moda:ital,wght@0,500;1,500&family=Cormorant+Garamond:ital,wght@1,500;1,600&family=DM+Mono:wght@400;500&family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&family=Mochiy+Pop+One&family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Maru+Gothic:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: 1カラムのスマホアプリ。上部ヘッダー＋下部タブ。写真グリッドと余白が主役、操作はボトムシートで行う */
+:root{
+  --bg:#F3F4F2; --surface:#FFFFFF; --ink:#17191A; --muted:#6A706E; --line:#E1E4E1;
+  --accent:#1F4E4A; --accent-ink:#FFFFFF; --accent-soft:#E2ECE9;
+  --ok:#2F6B45; --ok-soft:#E3F0E6; --warn:#9A5521; --warn-soft:#F6EBDF; --danger:#B03636; --danger-soft:#F7E3E1;
+  --shade:rgba(15,20,19,.42); --photo:#E9EBE8;
+  --f-display:"Zen Old Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+  --f-num:"DM Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:14px; --r-sm:10px; --btn-r:999px; --bw:1px; --hair:var(--line);
+  --f-en:var(--f-display); --en-size:11px; --en-style:normal; --en-weight:500; --en-case:uppercase; --en-ls:.26em; --en-color:var(--muted);
+  --ja-size:26px; --ja-ls:.02em; --ja-color:var(--ink);
+  --tabbg:var(--surface); --tabfg:var(--muted); --tabon:var(--ink); --tabicon:var(--accent);
+  --fab-bg:var(--ink); --fab-fg:var(--bg); --chip-on-bg:var(--ink); --chip-on-fg:var(--bg);
+  --card-shadow:none; --card-border:0 solid transparent; --btn-shadow:none;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111413; --surface:#1A1E1D; --ink:#ECEFEE; --muted:#9AA3A0; --line:#2A302E;
+  --accent:#8CC3B9; --accent-ink:#0F1A18; --accent-soft:#1E2D2A;
+  --ok:#86C79A; --ok-soft:#1C2B21; --warn:#E3A56C; --warn-soft:#2E241B; --danger:#EE8A84; --danger-soft:#33201F;
+  --shade:rgba(0,0,0,.6); --photo:#242928; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111413; --surface:#1A1E1D; --ink:#ECEFEE; --muted:#9AA3A0; --line:#2A302E;
+  --accent:#8CC3B9; --accent-ink:#0F1A18; --accent-soft:#1E2D2A;
+  --ok:#86C79A; --ok-soft:#1C2B21; --warn:#E3A56C; --warn-soft:#2E241B; --danger:#EE8A84; --danger-soft:#33201F;
+  --shade:rgba(0,0,0,.6); --photo:#242928; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.app{max-width:560px;margin:0 auto;min-height:100vh;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+
+/* ===== デザインパターン ===== */
+:root[data-style="mode"]{
+  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#0B0B0B; --muted:#7E7E7E; --line:#E3E3E3; --hair:#ECECEC;
+  --accent:#0B0B0B; --accent-ink:#FFFFFF; --accent-soft:#F3F3F2;
+  --ok:#2E6A43; --ok-soft:#EAF2EC; --warn:#8C5A24; --warn-soft:#F6EFE6; --danger:#A32D2D; --danger-soft:#F8E6E6; --shade:rgba(0,0,0,.45); --photo:#F1F0EE;
+  --f-display:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif; --f-en:"Bodoni Moda","Bodoni 72","Didot",serif;
+  --r:0px; --r-sm:0px; --btn-r:0px;
+  --en-size:48px; --en-style:italic; --en-weight:500; --en-case:none; --en-ls:-.01em; --en-color:var(--ink);
+  --ja-size:11px; --ja-ls:.3em; --ja-color:var(--muted);
+  --tabbg:#FFFFFF; --tabfg:#A0A0A0; --tabon:#0B0B0B; --tabicon:#0B0B0B; --fab-bg:#0B0B0B; --fab-fg:#FFFFFF; --chip-on-bg:#0B0B0B; --chip-on-fg:#FFFFFF;
+  --card-shadow:none; --card-border:0 solid transparent; --btn-shadow:none}
+@media (prefers-color-scheme: dark){:root[data-style="mode"]:not([data-theme="light"]){
+  --bg:#0A0A0A; --surface:#121212; --ink:#F4F4F4; --muted:#8E8E8E; --line:#2A2A2A; --hair:#222222; --accent:#F4F4F4; --accent-ink:#0A0A0A; --accent-soft:#1B1B1B;
+  --ok:#8FD0A2; --ok-soft:#17221A; --warn:#E1AE74; --warn-soft:#2A2118; --danger:#F08F8F; --danger-soft:#2C1717; --shade:rgba(0,0,0,.65); --photo:#1A1A1A;
+  --tabbg:#0A0A0A; --tabfg:#6E6E6E; --tabon:#F4F4F4; --tabicon:#F4F4F4; --fab-bg:#F4F4F4; --fab-fg:#0A0A0A; --chip-on-bg:#F4F4F4; --chip-on-fg:#0A0A0A; color-scheme:dark}}
+:root[data-style="mode"][data-theme="dark"]{
+  --bg:#0A0A0A; --surface:#121212; --ink:#F4F4F4; --muted:#8E8E8E; --line:#2A2A2A; --hair:#222222; --accent:#F4F4F4; --accent-ink:#0A0A0A; --accent-soft:#1B1B1B;
+  --ok:#8FD0A2; --ok-soft:#17221A; --warn:#E1AE74; --warn-soft:#2A2118; --danger:#F08F8F; --danger-soft:#2C1717; --shade:rgba(0,0,0,.65); --photo:#1A1A1A;
+  --tabbg:#0A0A0A; --tabfg:#6E6E6E; --tabon:#F4F4F4; --tabicon:#F4F4F4; --fab-bg:#F4F4F4; --fab-fg:#0A0A0A; --chip-on-bg:#F4F4F4; --chip-on-fg:#0A0A0A; color-scheme:dark}
+:root[data-style="mode"] .panel{border-left:0;border-right:0;background:transparent;padding-inline:0}
+:root[data-style="mode"] .cmeta .k,:root[data-style="mode"] .panel h2,:root[data-style="mode"] .sec-h{letter-spacing:.22em;font-size:10.5px}
+:root[data-style="mode"] .cmeta b{font-weight:400}
+:root[data-style="mode"] .grid{gap:26px 10px}
+:root[data-style="mode"] .tab{font-size:9.5px;letter-spacing:.12em}
+
+:root[data-style="blush"]{
+  --bg:#F8F0EC; --surface:#FFFCFA; --ink:#3B2F2F; --muted:#9C8783; --line:#EEDFD9; --hair:#F1E6E1;
+  --accent:#B85C70; --accent-ink:#FFFFFF; --accent-soft:#F7E3E5;
+  --ok:#4E7A55; --ok-soft:#E8F1E6; --warn:#A0612F; --warn-soft:#F8EADC; --danger:#B4424F; --danger-soft:#F8E1E2; --shade:rgba(60,30,35,.35); --photo:#F1E4DF;
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif; --f-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif; --f-en:"Cormorant Garamond","Garamond",Georgia,serif;
+  --r:24px; --r-sm:16px; --btn-r:999px;
+  --en-size:46px; --en-style:italic; --en-weight:600; --en-case:none; --en-ls:0; --en-color:var(--accent);
+  --ja-size:12px; --ja-ls:.22em; --ja-color:var(--muted);
+  --tabbg:#FFFCFA; --tabfg:#B19C98; --tabon:#3B2F2F; --tabicon:#B85C70; --fab-bg:#B85C70; --fab-fg:#FFFFFF; --chip-on-bg:#B85C70; --chip-on-fg:#FFFFFF;
+  --card-shadow:0 10px 26px rgba(150,90,90,.13); --card-border:0 solid transparent; --btn-shadow:none}
+@media (prefers-color-scheme: dark){:root[data-style="blush"]:not([data-theme="light"]){
+  --bg:#1C1517; --surface:#261D20; --ink:#F4E8E6; --muted:#B49E9A; --line:#3A2C30; --hair:#33272A; --accent:#EE9DAE; --accent-ink:#2A161C; --accent-soft:#3B252B;
+  --ok:#93C99B; --ok-soft:#1F2A20; --warn:#E8B07E; --warn-soft:#33251A; --danger:#F3949B; --danger-soft:#3A1F22; --shade:rgba(0,0,0,.6); --photo:#30252A;
+  --tabbg:#1C1517; --tabfg:#8C7774; --tabon:#F4E8E6; --tabicon:#EE9DAE; --fab-bg:#EE9DAE; --fab-fg:#2A161C; --chip-on-bg:#EE9DAE; --chip-on-fg:#2A161C; --card-shadow:none; color-scheme:dark}}
+:root[data-style="blush"][data-theme="dark"]{
+  --bg:#1C1517; --surface:#261D20; --ink:#F4E8E6; --muted:#B49E9A; --line:#3A2C30; --hair:#33272A; --accent:#EE9DAE; --accent-ink:#2A161C; --accent-soft:#3B252B;
+  --ok:#93C99B; --ok-soft:#1F2A20; --warn:#E8B07E; --warn-soft:#33251A; --danger:#F3949B; --danger-soft:#3A1F22; --shade:rgba(0,0,0,.6); --photo:#30252A;
+  --tabbg:#1C1517; --tabfg:#8C7774; --tabon:#F4E8E6; --tabicon:#EE9DAE; --fab-bg:#EE9DAE; --fab-fg:#2A161C; --chip-on-bg:#EE9DAE; --chip-on-fg:#2A161C; --card-shadow:none; color-scheme:dark}
+:root[data-style="blush"] .panel{border-color:transparent;box-shadow:0 6px 20px rgba(150,90,90,.07)}
+:root[data-style="blush"] .chip{border-color:transparent}
+:root[data-style="blush"] .chip:not([aria-pressed="true"]){background:var(--surface)}
+:root[data-style="blush"] .cmeta{padding-inline:4px}
+
+:root[data-style="street"]{
+  --bg:#ECEBE6; --surface:#FFFFFF; --ink:#121212; --muted:#5C5C57; --line:#121212; --hair:#D2D1CB;
+  --accent:#F28C28; --accent-ink:#121212; --accent-soft:#FDE4CB;
+  --ok:#23733F; --ok-soft:#DDF0E2; --warn:#A0510E; --warn-soft:#FBE8D6; --danger:#C22B2B; --danger-soft:#F9DEDE; --shade:rgba(0,0,0,.5); --photo:#DCDBD5;
+  --f-display:"Dela Gothic One","Hiragino Sans",sans-serif; --f-en:"Anton",Impact,"Arial Narrow",sans-serif;
+  --bw:2px; --r:6px; --r-sm:6px; --btn-r:6px;
+  --en-size:60px; --en-style:normal; --en-weight:400; --en-case:uppercase; --en-ls:.01em; --en-color:var(--ink);
+  --ja-size:13px; --ja-ls:.06em; --ja-color:var(--ink);
+  --tabbg:#121212; --tabfg:#9C9C96; --tabon:#FFFFFF; --tabicon:#F28C28; --fab-bg:#F28C28; --fab-fg:#121212; --chip-on-bg:#121212; --chip-on-fg:#FFFFFF;
+  --card-shadow:4px 4px 0 #121212; --card-border:2px solid #121212; --btn-shadow:3px 3px 0 #121212}
+@media (prefers-color-scheme: dark){:root[data-style="street"]:not([data-theme="light"]){
+  --bg:#141414; --surface:#1E1E1E; --ink:#F1F1EE; --muted:#A6A6A0; --line:#F1F1EE; --hair:#3A3A37; --accent:#FF9A3D; --accent-ink:#141414; --accent-soft:#3A2714;
+  --ok:#7DD39A; --ok-soft:#18291E; --warn:#F2AE6E; --warn-soft:#33240F; --danger:#F38C8C; --danger-soft:#3A1C1C; --shade:rgba(0,0,0,.65); --photo:#2A2A27;
+  --tabbg:#000000; --tabfg:#8A8A85; --tabon:#FFFFFF; --tabicon:#FF9A3D; --fab-bg:#FF9A3D; --fab-fg:#141414; --chip-on-bg:#F1F1EE; --chip-on-fg:#141414;
+  --card-shadow:4px 4px 0 #F1F1EE; --card-border:2px solid #F1F1EE; --btn-shadow:3px 3px 0 #F1F1EE; color-scheme:dark}}
+:root[data-style="street"][data-theme="dark"]{
+  --bg:#141414; --surface:#1E1E1E; --ink:#F1F1EE; --muted:#A6A6A0; --line:#F1F1EE; --hair:#3A3A37; --accent:#FF9A3D; --accent-ink:#141414; --accent-soft:#3A2714;
+  --ok:#7DD39A; --ok-soft:#18291E; --warn:#F2AE6E; --warn-soft:#33240F; --danger:#F38C8C; --danger-soft:#3A1C1C; --shade:rgba(0,0,0,.65); --photo:#2A2A27;
+  --tabbg:#000000; --tabfg:#8A8A85; --tabon:#FFFFFF; --tabicon:#FF9A3D; --fab-bg:#FF9A3D; --fab-fg:#141414; --chip-on-bg:#F1F1EE; --chip-on-fg:#141414;
+  --card-shadow:4px 4px 0 #F1F1EE; --card-border:2px solid #F1F1EE; --btn-shadow:3px 3px 0 #F1F1EE; color-scheme:dark}
+:root[data-style="street"] .cmeta b{font-weight:700}
+:root[data-style="street"] .cmeta .k{font-family:var(--f-en);letter-spacing:.08em;font-size:12px;color:var(--ink)}
+:root[data-style="street"] .chip,:root[data-style="street"] .btn{font-weight:700}
+:root[data-style="street"] .badge{border:2px solid var(--line);font-weight:700}
+:root[data-style="street"] .grid{gap:22px 14px}
+:root[data-style="street"] .notice{border:2px solid var(--line)}
+
+/* ===== ポップ（黄色・ダーク時はナイト） ===== */
+:root[data-style="pop"]{
+  --bg:#FFE14D; --surface:#FFFFFF; --ink:#161616; --muted:#4F4A35; --line:#161616; --hair:rgba(22,22,22,.18);
+  --accent:#161616; --accent-ink:#FFE14D; --accent-soft:#FFF4B0;
+  --ok:#14653F; --ok-soft:#33C48D; --warn:#161616; --warn-soft:#FFA94D; --danger:#B3122E; --danger-soft:#FFD3DB; --shade:rgba(22,22,22,.5); --photo:#FFFFFF;
+  --c1:#4D7CFF; --c2:#33C48D; --c3:#FF7BAC; --c4:#FFFFFF; --card-ink:#161616; --sticker:#FF7BAC; --info-bg:#4D7CFF; --info-fg:#FFFFFF;
+  --f-display:"Mochiy Pop One","Hiragino Maru Gothic ProN",sans-serif; --f-body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif; --f-en:"Mochiy Pop One",sans-serif; --f-num:"M PLUS Rounded 1c",sans-serif;
+  --bw:3px; --r:14px; --r-sm:14px; --btn-r:999px;
+  --ja-size:36px; --ja-ls:0; --ja-color:var(--ink);
+  --tabbg:#FFFFFF; --tabfg:#8A8A8A; --tabon:#161616; --tabicon:#161616; --fab-bg:#161616; --fab-fg:#FFE14D; --chip-on-bg:#161616; --chip-on-fg:#FFE14D;
+  --card-shadow:none; --card-border:3px solid #161616; --btn-shadow:3px 3px 0 #FF7BAC; --pop-shadow:4px 4px 0 #161616}
+@media (prefers-color-scheme: dark){:root[data-style="pop"]:not([data-theme="light"]){
+  --bg:#1A1B3D; --surface:#2A2C5C; --ink:#F6F1E6; --muted:#C3C1E0; --line:#F6F1E6; --hair:rgba(246,241,230,.2);
+  --accent:#F5FF5C; --accent-ink:#1A1B3D; --accent-soft:#2E3070;
+  --ok:#5CF2D6; --ok-soft:#5CF2D6; --warn:#1A1B3D; --warn-soft:#FFB36B; --danger:#FF8FA3; --danger-soft:#4A2440; --shade:rgba(0,0,0,.6); --photo:#2A2C5C;
+  --c1:#5CF2D6; --c2:#F5FF5C; --c3:#FF6FB5; --c4:#F6F1E6; --card-ink:#1A1B3D; --sticker:#FF6FB5; --info-bg:#5CF2D6; --info-fg:#1A1B3D;
+  --tabbg:#2A2C5C; --tabfg:#9A9BC4; --tabon:#F5FF5C; --tabicon:#F5FF5C; --fab-bg:#F5FF5C; --fab-fg:#1A1B3D; --chip-on-bg:#F5FF5C; --chip-on-fg:#1A1B3D;
+  --card-border:3px solid #F6F1E6; --btn-shadow:3px 3px 0 #FF6FB5; --pop-shadow:4px 4px 0 #F6F1E6; color-scheme:dark}}
+:root[data-style="pop"][data-theme="dark"]{
+  --bg:#1A1B3D; --surface:#2A2C5C; --ink:#F6F1E6; --muted:#C3C1E0; --line:#F6F1E6; --hair:rgba(246,241,230,.2);
+  --accent:#F5FF5C; --accent-ink:#1A1B3D; --accent-soft:#2E3070;
+  --ok:#5CF2D6; --ok-soft:#5CF2D6; --warn:#1A1B3D; --warn-soft:#FFB36B; --danger:#FF8FA3; --danger-soft:#4A2440; --shade:rgba(0,0,0,.6); --photo:#2A2C5C;
+  --c1:#5CF2D6; --c2:#F5FF5C; --c3:#FF6FB5; --c4:#F6F1E6; --card-ink:#1A1B3D; --sticker:#FF6FB5; --info-bg:#5CF2D6; --info-fg:#1A1B3D;
+  --tabbg:#2A2C5C; --tabfg:#9A9BC4; --tabon:#F5FF5C; --tabicon:#F5FF5C; --fab-bg:#F5FF5C; --fab-fg:#1A1B3D; --chip-on-bg:#F5FF5C; --chip-on-fg:#1A1B3D;
+  --card-border:3px solid #F6F1E6; --btn-shadow:3px 3px 0 #FF6FB5; --pop-shadow:4px 4px 0 #F6F1E6; color-scheme:dark}
+.vh .pj,.vh .sfx,.brand .pjb{display:none}
+:root[data-style="pop"] body{font-weight:500}
+:root[data-style="pop"] .brand .en-b{display:none}
+:root[data-style="pop"] .brand .pjb{display:inline;font-size:19px}
+:root[data-style="pop"] .vh{align-items:flex-start;margin:14px 0 18px}
+:root[data-style="pop"] .vh h1 .en,:root[data-style="pop"] .vh h1 .ja{display:none}
+:root[data-style="pop"] .vh h1 .pj{display:block;font-family:var(--f-display);font-size:36px;line-height:1.15}
+:root[data-style="pop"] .vh .sub.num{width:74px;height:74px;flex:none;border-radius:50%;background:var(--sticker);color:#161616;border:3px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:15px;line-height:1.2;transform:rotate(10deg);margin-top:4px}
+:root[data-style="pop"] .vh .sfx{display:block;font-size:11.5px}
+:root[data-style="pop"] .vh .sub:not(.num){font-weight:800;color:var(--ink);background:var(--surface);border:3px solid var(--line);border-radius:999px;padding:3px 12px;font-size:12.5px;margin-top:8px}
+:root[data-style="pop"] .chip,:root[data-style="pop"] .btn,:root[data-style="pop"] .pill{font-weight:800}
+:root[data-style="pop"] .grid .card{background:var(--c4);color:var(--card-ink);border:3px solid var(--line);border-radius:22px;padding:9px 9px 11px;box-shadow:var(--pop-shadow);gap:7px;transform:rotate(-1.5deg)}
+:root[data-style="pop"] .grid .card:nth-child(4n+1){background:var(--c1)}
+:root[data-style="pop"] .grid .card:nth-child(4n+2){background:var(--c2);transform:rotate(1.8deg);margin-top:12px}
+:root[data-style="pop"] .grid .card:nth-child(4n+3){background:var(--c3);transform:rotate(1.2deg)}
+:root[data-style="pop"] .grid .card:nth-child(4n){transform:rotate(-1.2deg);margin-top:12px}
+:root[data-style="pop"] .grid .card .ph{border-color:#161616}
+:root[data-style="pop"] .grid .card .cmeta .k,:root[data-style="pop"] .grid .card .cmeta span{color:var(--card-ink);opacity:.8}
+:root[data-style="pop"] .grid .card .cmeta b{font-weight:800}
+:root[data-style="pop"] .grid{gap:18px 14px}
+:root[data-style="pop"] .wishgrid{grid-template-columns:1fr}
+:root[data-style="pop"] .wishgrid .card,:root[data-style="pop"] .wishgrid .card:nth-child(n){grid-template-columns:100px minmax(0,1fr);align-items:center;gap:12px;transform:none;margin-top:0;background:var(--c4)}
+:root[data-style="pop"] .wishgrid .card .ph{aspect-ratio:auto;height:118px}
+:root[data-style="pop"] .wishgrid .card:nth-child(4n+1) .ph{background:var(--c3)}
+:root[data-style="pop"] .wishgrid .card:nth-child(4n+2) .ph{background:var(--c1)}
+:root[data-style="pop"] .wishgrid .card:nth-child(4n+3) .ph{background:var(--c2)}
+:root[data-style="pop"] .wishgrid .cmeta b{font-size:15.5px}
+:root[data-style="pop"] .wishgrid .cmeta span:last-child{justify-self:start;background:#FFE14D;color:#161616;opacity:1;border:2px solid #161616;border-radius:8px;padding:0 8px;font-weight:800;margin-top:4px}
+:root[data-style="pop"] .panel{border:3px solid var(--line);border-radius:22px;box-shadow:var(--pop-shadow)}
+:root[data-style="pop"] .panel h2,:root[data-style="pop"] .sec-h{font-family:var(--f-display);color:var(--ink);letter-spacing:0;font-size:15px;font-weight:400}
+:root[data-style="pop"] .notice{border:3px solid var(--line);border-radius:18px}
+:root[data-style="pop"] .badge{border:2px solid #161616;font-weight:800;color:#161616;background:#FFFFFF}
+:root[data-style="pop"] .badge.acc{background:#FFE14D}
+:root[data-style="pop"] .st{border:2px solid var(--line);font-weight:800;font-size:11.5px}
+:root[data-style="pop"] .st.ok{background:var(--ok-soft);color:#161616}
+:root[data-style="pop"] .st.warn{background:var(--warn-soft);color:#161616}
+:root[data-style="pop"] .st.info{background:var(--info-bg);color:var(--info-fg)}
+:root[data-style="pop"] .st.na{background:#E4E4E4;color:#161616}
+:root[data-style="pop"] .actions3 .btn{border-radius:18px;box-shadow:var(--pop-shadow);color:#161616}
+:root[data-style="pop"] .actions3 .btn:nth-child(1){background:var(--c3)}
+:root[data-style="pop"] .actions3 .btn:nth-child(2){background:var(--c2)}
+:root[data-style="pop"] .actions3 .btn:nth-child(3){background:#FFFFFF}
+:root[data-style="pop"] .btn.primary{box-shadow:var(--btn-shadow)}
+:root[data-style="pop"] .tabs{left:50%;right:auto;transform:translateX(-50%);width:min(536px,calc(100% - 24px));bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-bottom:0;border:3px solid var(--line);border-radius:22px;overflow:hidden}
+:root[data-style="pop"] .tab{font-weight:800}
+:root[data-style="pop"] .app{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+:root[data-style="pop"] .fab{bottom:calc(92px + env(safe-area-inset-bottom,0px));font-family:var(--f-display);font-weight:400;border-width:3px;box-shadow:4px 4px 0 var(--sticker)!important}
+:root[data-style="pop"] .mlist.body{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+:root[data-style="pop"] .mlist.body .mrow{flex-direction:column;align-items:flex-start;gap:0;border:3px solid var(--line);border-radius:14px;padding:7px 9px;position:relative;background:var(--surface)}
+:root[data-style="pop"] .mlist.body .mrow .nm{font-size:11.5px;font-weight:800;padding-right:24px}
+:root[data-style="pop"] .mlist.body .mrow .val{font-family:var(--f-display);font-size:16px;text-align:left}
+:root[data-style="pop"] .mlist.body .mrow .val.na{font-family:var(--f-body);font-size:11.5px}
+:root[data-style="pop"] .mlist.body .q{position:absolute;top:5px;right:5px;width:22px;height:22px;font-size:11px;border-width:2px;border-color:var(--line)}
+:root[data-style="pop"] .sheet{border:3px solid var(--line);border-bottom:0}
+:root[data-style="pop"] .hello .mark{font-size:44px}
+/* デザイン選択 */
+.styles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sty{display:grid;gap:6px;text-align:left;border:var(--bw) solid var(--line);border-radius:var(--r-sm);padding:10px;background:var(--surface)}
+.sty[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:1px}
+.sty .pv{border-radius:6px;height:76px;padding:10px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.sty .pv b{font-size:26px;line-height:1;font-weight:400}
+.sty .pv i{display:flex;gap:4px}
+.sty .pv i span{width:14px;height:14px;border-radius:50%;display:block}
+.sty .nm{font-size:13px;font-weight:700}
+.sty .ds{font-size:11.5px;color:var(--muted);line-height:1.45}
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;gap:10px;padding:12px 16px}
+.brand{font-family:var(--f-en);font-size:20px;letter-spacing:.03em;margin-right:auto;line-height:1.1}
+.brand small{font-family:var(--f-body);font-size:11px;color:var(--muted);letter-spacing:.12em;margin-left:6px}
+@media(max-width:430px){.brand small{display:none}}
+.brand{white-space:nowrap;min-width:0}
+.pill{display:inline-flex;align-items:center;gap:6px;border:var(--bw) solid var(--line);background:var(--surface);border-radius:var(--btn-r);padding:6px 12px;font-size:13px;max-width:52vw}
+.pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iconbtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:var(--bw) solid var(--line);background:var(--surface)}
+.iconbtn svg,.tab svg,.btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+main{padding-inline:16px;padding-block:6px 24px}
+.vh{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:12px 0 16px}
+.vh h1{display:grid;gap:4px;margin:0;font-weight:400}
+.vh h1 .en{font-family:var(--f-en);font-size:var(--en-size);font-style:var(--en-style);font-weight:var(--en-weight);text-transform:var(--en-case);letter-spacing:var(--en-ls);color:var(--en-color);line-height:1}
+.vh h1 .ja{font-family:var(--f-display);font-size:var(--ja-size);font-weight:700;letter-spacing:var(--ja-ls);color:var(--ja-color);line-height:1.25}
+.vh .sub{color:var(--muted);font-size:13px}
+.lede{color:var(--muted);font-size:13px;margin:-6px 0 14px}
+/* bottom tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--tabbg);border-top:1px solid var(--hair);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 2px 8px;font-size:10.5px;color:var(--tabfg);letter-spacing:.02em}
+.tab[aria-current="page"]{color:var(--tabon)}
+.tab[aria-current="page"] svg{stroke:var(--tabicon);stroke-width:2}
+/* inputs */
+.field{display:grid;gap:6px;margin-bottom:14px}
+.field>label,.lbl{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.inp,select.inp,textarea.inp{width:100%;border:var(--bw) solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:11px 12px;font-size:16px}
+textarea.inp{min-height:88px;resize:vertical}
+.search{position:relative;margin-bottom:12px}
+.search .inp{padding-left:38px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.8}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chip{flex:none;border:var(--bw) solid var(--line);background:var(--surface);border-radius:var(--btn-r);padding:6px 13px;font-size:13px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--chip-on-bg);color:var(--chip-on-fg);border-color:var(--chip-on-bg)}
+.chip .c{font-family:var(--f-num);font-size:11px;opacity:.6}
+.sw{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.15);display:inline-block}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--btn-r);padding:12px 18px;font-size:14px;font-weight:500;border:var(--bw) solid var(--line);background:var(--surface)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);box-shadow:var(--btn-shadow)}
+.btn.dark{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.btn.block{width:100%}
+.btn.fab{background:var(--fab-bg);color:var(--fab-fg);border-color:var(--fab-bg)}
+.btn.sm{padding:8px 13px;font-size:13px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.link{color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row.end{justify-content:flex-end}
+.grow{flex:1 1 auto;min-width:0}
+/* grid of photos */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}
+@media(min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.card{text-align:left;display:grid;gap:8px;min-width:0}
+.ph{position:relative;aspect-ratio:4/5;max-width:100%;border-radius:var(--r);overflow:hidden;background:var(--photo);border:var(--card-border);box-shadow:var(--card-shadow)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:12px}
+.empty svg{width:40px;height:40px;stroke:var(--muted);fill:none;stroke-width:1.3;stroke-linejoin:round;stroke-linecap:round}
+.badge{position:absolute;top:8px;left:8px;background:var(--surface);color:var(--ink);font-size:10.5px;padding:2px 8px;border-radius:999px;letter-spacing:.04em}
+.badge.r{left:auto;right:8px}
+.badge.acc{background:var(--accent);color:var(--accent-ink)}
+.cmeta{display:grid;gap:1px;min-width:0}
+.cmeta .k{font-size:10.5px;color:var(--muted);letter-spacing:.1em}
+.cmeta b{font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmeta span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fab{box-shadow:var(--btn-shadow),0 8px 24px rgba(0,0,0,.18)!important;position:fixed;right:max(16px,calc(50% - 264px));bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:25;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+/* blocks */
+.panel{background:var(--surface);border:var(--bw) solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.panel h2,.sec-h{font-size:13px;letter-spacing:.12em;color:var(--muted);font-weight:500;margin:0 0 10px}
+.panel h3{font-size:15px;margin:0 0 6px}
+.note{font-size:12.5px;color:var(--muted)}
+.notice{border-radius:var(--r-sm);padding:12px 14px;font-size:13px;background:var(--accent-soft);margin-bottom:14px}
+.notice.warn{background:var(--warn-soft)}
+.notice b{display:block;margin-bottom:2px}
+.empty-state{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty-state h2{font-family:var(--f-display);color:var(--ink);font-size:20px;margin:0 0 8px;font-weight:600}
+.empty-state p{margin:0 auto 18px;max-width:30em;font-size:13.5px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+.kv dt{color:var(--muted);font-size:12.5px}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.mlist{display:grid}
+.mrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hair)}
+.mrow:last-child{border-bottom:0}
+.mrow .nm{flex:1;min-width:0;font-size:14px}
+.mrow .nm small{display:block;color:var(--muted);font-size:11.5px}
+.mrow .val{font-family:var(--f-num);font-size:15px;text-align:right}
+.mrow .val.na{color:var(--muted);font-family:var(--f-body);font-size:12.5px}
+.q{width:26px;height:26px;border-radius:50%;border:var(--bw) solid var(--line);font-size:12px;color:var(--muted);flex:none}
+.tbl-wrap{overflow-x:auto;margin:0 -2px}
+table.t{border-collapse:collapse;width:100%;font-size:13px;min-width:100%}
+table.t th,table.t td{padding:8px 8px;border-bottom:1px solid var(--hair);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t th{font-weight:500;color:var(--muted);font-size:11.5px}
+table.t tr.sel td{background:var(--accent-soft)}
+.fit{display:grid;gap:8px}
+.fitrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;font-size:13.5px}
+.st{font-size:11px;padding:2px 8px;border-radius:999px;white-space:nowrap;margin-top:2px}
+.st.ok{background:var(--ok-soft);color:var(--ok)}
+.st.warn{background:var(--warn-soft);color:var(--warn)}
+.st.na{background:var(--photo);color:var(--muted)}
+.st.info{background:var(--accent-soft);color:var(--accent)}
+.fitrow small{display:block;color:var(--muted);font-size:12px}
+/* sheets */
+.sheet-wrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:var(--shade);animation:fade .18s ease}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:calc(100% - 28px - env(safe-area-inset-top,0px));border-radius:20px 20px 0 0;display:flex;flex-direction:column;animation:up .22s cubic-bezier(.2,.8,.2,1)}
+.sheet-h{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;border-bottom:var(--bw) solid var(--line)}
+.sheet-h h2{font-size:16px;margin:0;flex:1;font-weight:700}
+.sheet-b{overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.sheet-f{border-top:var(--bw) solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
+.sheet-f .btn{flex:1}
+@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sheet,.sheet-wrap{animation:none}}
+.modal-wrap{position:fixed;inset:0;z-index:80;background:var(--shade);display:grid;place-items:center;padding:16px}
+.modal{background:var(--surface);border-radius:var(--r);max-width:400px;width:100%;padding:20px}
+.modal h2{font-size:17px;margin:0 0 8px}
+.modal p{margin:0 0 16px;font-size:14px;color:var(--muted);white-space:pre-line}
+.toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:90;max-width:calc(100% - 32px);text-align:center}
+/* photos strip */
+.strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px 14px;padding:0 16px}
+.strip .ph{flex:0 0 78%;scroll-snap-align:center}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.thumb{position:relative;width:76px;height:95px;border-radius:var(--r-sm);overflow:hidden;background:var(--photo)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:13px;line-height:22px;text-align:center}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+.minp{display:grid;gap:4px;min-width:0}
+.minp label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:4px}
+.unit{position:relative}
+.unit .inp{padding-right:36px;font-family:var(--f-num)}
+.unit::after{content:"cm";position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:var(--bw) solid var(--line);border-radius:999px;overflow:hidden;font-size:11px}
+.seg button{padding:1px 8px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.sizerow{border:var(--bw) solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:10px;background:var(--surface)}
+.sizerow.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.stars{display:inline-flex;gap:2px}
+.stars button{font-size:22px;line-height:1;color:var(--line);padding:2px}
+.stars button.on{color:var(--accent)}
+details.help{border:var(--bw) solid var(--line);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;background:var(--surface);font-size:13px}
+details.help summary{cursor:pointer;font-weight:500}
+details.help ul{margin:8px 0 2px;padding-left:18px}
+.actions3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.actions3 .btn{flex-direction:column;gap:4px;padding:12px 4px;border-radius:var(--r);font-size:12px}
+.collage{display:grid;grid-template-columns:1fr 1fr;gap:3px;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--photo)}
+.collage>div{background:var(--photo);overflow:hidden;min-height:0}
+.collage img{width:100%;height:100%;object-fit:cover;display:block}
+.collage.n1{grid-template-columns:1fr}
+.collage.n2{grid-template-columns:1fr 1fr}
+.collage.n3>div:first-child{grid-row:span 2}
+.slot{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hair)}
+.slot .sl{width:64px;flex:none;font-size:12.5px;color:var(--muted)}
+.slot .its{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto}
+.mini{position:relative;width:48px;height:60px;border-radius:8px;overflow:hidden;background:var(--photo);flex:none}
+.mini img{width:100%;height:100%;object-fit:cover}
+.mini .w{position:absolute;bottom:0;left:0;right:0;background:var(--accent);color:var(--accent-ink);font-size:9px;text-align:center}
+.pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.pick .card{position:relative}
+.pick .card[aria-pressed="true"] .ph{outline:3px solid var(--accent);outline-offset:-3px}
+.pick .tick{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:13px;display:none;place-items:center}
+.pick .card[aria-pressed="true"] .tick{display:grid}
+.photo3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.photo3 .ph{aspect-ratio:3/5}
+.photo3 .cap{font-size:12px;color:var(--muted);text-align:center;margin-top:4px}
+.guide-fig{background:var(--surface);border:var(--bw) solid var(--line);border-radius:var(--r);display:grid;place-items:center;padding:10px;margin-bottom:14px}
+.guide-fig svg{width:100%;max-width:220px;height:auto}
+.prog{display:flex;gap:3px;margin-bottom:14px}
+.prog i{flex:1;height:3px;border-radius:2px;background:var(--line)}
+.prog i.on{background:var(--accent)}
+.gstep h3{font-family:var(--f-display);font-size:22px;margin:0 0 6px;font-weight:700}
+.gstep p{margin:0 0 12px;font-size:14px}
+.side2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sugg{border-top:1px solid var(--hair);padding-top:12px;margin-top:12px}
+.sugg:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.sugg dl{display:grid;grid-template-columns:5.5em 1fr;gap:4px 10px;margin:8px 0 0;font-size:13.5px}
+.sugg dt{color:var(--muted);font-size:12px}
+.sugg dd{margin:0}
+.foot{text-align:center;font-size:11.5px;color:var(--muted);margin-top:28px;letter-spacing:.04em}
+.foot button{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.hello{padding-top:34px}
+.hello .mark{font-family:var(--f-en);font-size:48px;line-height:1.15;letter-spacing:.02em;margin:0 0 10px}
+.hello .tag{color:var(--muted);margin:0 0 26px;font-size:14px}
+.cmp{width:100%;border-collapse:collapse;font-size:12.5px}
+.cmp th,.cmp td{border-bottom:1px solid var(--hair);padding:8px 6px;text-align:left;vertical-align:top}
+.cmp th{color:var(--muted);font-weight:500;font-size:11.5px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.hist{font-size:13px}
+.hist .h{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hair);gap:10px}
+.hist .h span:last-child{color:var(--muted);text-align:right}
+.lr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+
+<div class="app" id="app">
+  <header class="top" id="top" hidden>
+    <div class="brand"><span class="en-b">My Closet<small>マイクローゼット</small></span><span class="pjb">マイクロ〜ゼット</span></div>
+    <button class="pill" data-act="profiles" aria-label="プロフィールを切り替える"><span id="pname"></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button class="iconbtn" data-act="settings" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+  <main id="main"><div class="empty-state"><p>読み込み中…</p></div></main>
+</div>
+<nav class="tabs" id="tabs" hidden><div class="tabs-in">
+  <button class="tab" data-act="tab" data-tab="closet"><svg viewBox="0 0 24 24"><path d="M12 5a2 2 0 1 1 2 2c-1 0-2 .6-2 1.6V9"/><path d="M12 9 3 15.5a1 1 0 0 0 .6 1.8h16.8a1 1 0 0 0 .6-1.8z"/></svg>クローゼット</button>
+  <button class="tab" data-act="tab" data-tab="wish"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>ほしい物</button>
+  <button class="tab" data-act="tab" data-tab="try"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.4"/><path d="M8 21v-6l-2-1 2-6h8l2 6-2 1v6"/></svg>着せ替え</button>
+  <button class="tab" data-act="tab" data-tab="coord"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>コーデ</button>
+  <button class="tab" data-act="tab" data-tab="me"><svg viewBox="0 0 24 24"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/></svg>Myサイズ</button>
+</div></nav>
+<div id="layer"></div>
+
+<script>
+"use strict";
+/* ===== 配布時に設定する項目（未設定のものは画面に出ません） ===== */
+const CONFIG = {
+  makerName: "Y-PU",
+  makerUrl: "https://y-pu.co.jp/",
+  instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
+  contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
+  version: "0.1.0（第1段階）"
+};
+
+/* ===== デザインパターン ===== */
+const STYLES=[
+  {k:"pop",n:"ポップ",d:"黄色と黒フチのシール風。夜はネイビーに",bg:"#FFE14D",ink:"#161616",ac:"#FF7BAC",ph:"#4D7CFF",f:'"Mochiy Pop One",sans-serif',t:"Closet"},
+  {k:"atelier",n:"アトリエ",d:"深緑と明朝体。上品で静か",bg:"#F3F4F2",ink:"#17191A",ac:"#1F4E4A",ph:"#E9EBE8",f:'"Zen Old Mincho",serif',t:"Closet"},
+  {k:"mode",n:"モード",d:"白と黒だけ。ファッション誌のように",bg:"#FFFFFF",ink:"#0B0B0B",ac:"#0B0B0B",ph:"#F1F0EE",f:'"Bodoni Moda",serif',t:"<em>Closet</em>"},
+  {k:"blush",n:"ブラッシュ",d:"くすみピンクと丸ゴシック。やわらかく",bg:"#F8F0EC",ink:"#3B2F2F",ac:"#B85C70",ph:"#F1E4DF",f:'"Cormorant Garamond",serif',t:"<em>Closet</em>"},
+  {k:"street",n:"ストリート",d:"太字と黒枠に、タンジェリンの差し色",bg:"#ECEBE6",ink:"#121212",ac:"#F28C28",ph:"#DCDBD5",f:'Anton,Impact,sans-serif',t:"CLOSET"}
+];
+function applyStyle(k){if(!STYLES.some(s=>s.k===k))k="pop";document.documentElement.dataset.style=k;try{localStorage.setItem("mc-style",k)}catch(e){}}
+(function(){let k="pop";try{if(localStorage.getItem("mc-style-v")==="2")k=localStorage.getItem("mc-style")||"pop";else localStorage.setItem("mc-style-v","2")}catch(e){}applyStyle(k)})();
+const hd=(en,ja,pj)=>`<span class="en">${en}</span><span class="ja">${ja}</span><span class="pj">${pj||ja}</span>`;
+function stylePicker(){const cur=document.documentElement.dataset.style;return `<div class="styles">${STYLES.map(s=>`<button class="sty" data-act="setStyle" data-v="${s.k}" aria-pressed="${cur===s.k}">
+  <span class="pv" style="background:${s.bg};color:${s.ink};font-family:${s.f}"><b>${s.t}</b><i><span style="background:${s.ink}"></span><span style="background:${s.ac}"></span><span style="background:${s.ph}"></span></i></span>
+  <span class="nm">${s.n}</span><span class="ds">${s.d}</span></button>`).join("")}</div>`}
+
+/* ===== 定義 ===== */
+const CATS = [
+  {k:"tops",l:"トップス",f:["shoulder","bodyWidth","length","sleeve"]},
+  {k:"outer",l:"アウター",f:["shoulder","bodyWidth","length","sleeve"]},
+  {k:"onepiece",l:"ワンピース",f:["shoulder","bodyWidth","waistG","length","sleeve"]},
+  {k:"pants",l:"パンツ",f:["waistG","hipG","rise","inseamG","thighW","hemW"]},
+  {k:"skirt",l:"スカート",f:["waistG","hipG","skirtLen"]},
+  {k:"shoes",l:"靴",f:["footLen","heel"]},
+  {k:"bag",l:"バッグ",f:["bagW","bagH","bagD"]},
+  {k:"acc",l:"小物",f:[]}
+];
+const CAT = Object.fromEntries(CATS.map(c=>[c.k,c]));
+const GF = {
+  shoulder:{l:"肩幅"}, bodyWidth:{l:"身幅",t:1,rl:"バスト"}, length:{l:"着丈"}, sleeve:{l:"袖丈"},
+  waistG:{l:"ウエスト",t:1}, hipG:{l:"ヒップ",t:1}, rise:{l:"股上"}, inseamG:{l:"股下"},
+  thighW:{l:"太もも幅",t:1,rl:"太もも周り"}, hemW:{l:"裾幅",t:1,rl:"裾周り"}, skirtLen:{l:"スカート丈"},
+  footLen:{l:"サイズ（足の長さ）"}, heel:{l:"ヒールの高さ"}, bagW:{l:"幅"}, bagH:{l:"高さ"}, bagD:{l:"マチ"}
+};
+const BODY = [
+  {k:"height",l:"身長",req:1},{k:"shoulder",l:"肩幅",req:1},{k:"chest",l:"胸囲",req:1},
+  {k:"waist",l:"ウエスト",req:1},{k:"belly",l:"お腹周り",req:1},{k:"hip",l:"ヒップ",req:1},
+  {k:"inseam",l:"股下",req:1},{k:"thigh",l:"太もも周り",req:1,lr:1},{k:"arm",l:"腕の長さ",req:1,lr:1},
+  {k:"neck",l:"首周り"},{k:"upperArm",l:"二の腕周り",lr:1},{k:"calf",l:"ふくらはぎ周り",lr:1}
+];
+const BODYK = Object.fromEntries(BODY.map(b=>[b.k,b]));
+const BGUIDE = {
+  height:"壁に背を向けて、かかと・お尻・背中を壁につけて立ちます。頭のてっぺんに本を水平に当て、本の下の位置を壁に印をつけて、床から測ります。",
+  shoulder:"背中側から測ります（人に手伝ってもらうと正確です）。左右の肩先の骨のいちばん外側どうしを、首の付け根を通る自然なカーブに沿って測ります。",
+  chest:"腕を下ろし、胸のいちばんふくらんだ位置をメジャーで水平に一周します。背中側でメジャーが下がらないよう、鏡で確認してください。",
+  waist:"胴のいちばんくびれた位置を水平に一周します。位置がわからないときは、体を横に曲げたときにしわができる位置、またはおへそより少し上を目安にしてください。",
+  belly:"おへその高さを水平に一周します。自然に息を吐いた状態で、お腹はへこませずに測ります。",
+  hip:"お尻のいちばん出ている位置を水平に一周します。横から鏡で見て、いちばん大きい位置を探してください。",
+  inseam:"裸足で立ち、本を股に軽く挟んで床と水平に持ちます。本の上の面から床までをまっすぐ測ります。",
+  thigh:"太もものいちばん太い位置（多くは股の付け根のすぐ下）を水平に一周します。左右で違う場合は左右別に入力できます。",
+  arm:"肩先の骨から、肘を通って手首の骨の出っ張りまでを測ります。肘は少し曲げて、腕の外側に沿わせます。",
+  neck:"のど仏のすぐ下、首の付け根に近い位置を一周します。指1本が入るくらいの強さで測ります。",
+  upperArm:"腕を下ろして力を抜き、肩と肘の間のいちばん太い位置を一周します。",
+  calf:"立った状態で、ふくらはぎのいちばん太い位置を水平に一周します。"
+};
+const COLORS = [
+  ["ブラック","#1B1B1B"],["ホワイト","#F7F7F5"],["グレー","#9A9C9B"],["ネイビー","#22304F"],["ベージュ","#D8C6A8"],
+  ["ブラウン","#6E4B34"],["カーキ","#7A7650"],["グリーン","#3E7650"],["ブルー","#3E6FB0"],["レッド","#B83A3A"],
+  ["ピンク","#E7A3B4"],["イエロー","#E6C34A"],["パープル","#77589A"],["オレンジ","#E07F3A"],["デニム","#4B6584"],["柄・その他","linear-gradient(135deg,#d8c6a8 0 50%,#22304f 50%)"]
+];
+const COLORHEX = Object.fromEntries(COLORS);
+const TASTES = ["きれいめ","カジュアル","モード","ナチュラル","ストリート","フェミニン","スポーティ","クラシック","古着"];
+const FITPREF = [["loose","ゆったり"],["regular","標準"],["slim","細身"]];
+const GOALS = ["すっきり見せたい","華やかにしたい","脚を長く見せたい","落ち着いた印象にしたい","動きやすさを優先したい","肩まわりを目立たせたくない"];
+const PURPOSES = ["仕事","デート","旅行","普段","その他"];
+const SLOTS = [
+  {k:"tops",l:"トップス",cats:["tops","outer","onepiece"]},{k:"bottoms",l:"ボトムス",cats:["pants","skirt","onepiece"]},
+  {k:"shoes",l:"靴",cats:["shoes"]},{k:"bag",l:"バッグ",cats:["bag"]},{k:"acc",l:"小物",cats:["acc"]}
+];
+const MATCH = {tops:["pants","skirt","outer","shoes","bag","acc"],outer:["tops","onepiece","pants","skirt","shoes","bag","acc"],onepiece:["outer","shoes","bag","acc"],pants:["tops","outer","shoes","bag","acc"],skirt:["tops","outer","shoes","bag","acc"],shoes:["tops","pants","skirt","onepiece","outer"],bag:["tops","pants","skirt","onepiece","outer"],acc:["tops","pants","skirt","onepiece","outer"]};
+const STRETCH = [["none","伸びない"],["some","少し伸びる"],["high","よく伸びる"]];
+
+/* ===== 小道具 ===== */
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = ()=>Date.now().toString(36)+Math.random().toString(36).slice(2,9);
+const today = ()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
+const fmtDate = s=>s?s.replace(/^(\d{4})-(\d{2})-(\d{2}).*$/,(m,y,mo,d)=>`${y}.${mo}.${d}`):"";
+const n1 = v=>(Math.round(v*10)/10).toFixed(1).replace(/\.0$/,"");
+const toNum = v=>{if(v===""||v==null)return null;const x=Number(String(v).replace(/[^\d.\-]/g,""));return Number.isFinite(x)?x:null};
+const signed = v=>(v>0?"+":v<0?"−":"±")+n1(Math.abs(v));
+const yen = v=>v==null?"":"¥"+Number(v).toLocaleString("ja-JP");
+const swatch = c=>{const h=COLORHEX[c];return h?`<i class="sw" style="background:${h}"></i>`:""};
+const ICON = {
+  shirt:'<svg viewBox="0 0 24 24"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c0 1.7-1.8 3-4 3S8 4.7 8 3z"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  grid:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>',
+  close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  person:'<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.4"/><path d="M8 21v-6l-2-1 2-6h8l2 6-2 1v6"/></svg>',
+  camera:'<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  image:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>'
+};
+
+/* ===== 端末内データベース（IndexedDB） ===== */
+const DB = {
+  d:null,
+  open(){return new Promise((res,rej)=>{let r;try{r=indexedDB.open("my-closet",1)}catch(e){rej(e);return}
+    r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore("profiles",{keyPath:"id"});
+      for(const s of ["items","outfits","blobs"]){const os=d.createObjectStore(s,{keyPath:"id"});os.createIndex("profileId","profileId")}
+      d.createObjectStore("meta",{keyPath:"key"})};
+    r.onsuccess=()=>{this.d=r.result;res()};r.onerror=()=>rej(r.error);r.onblocked=()=>rej(new Error("blocked"))})},
+  done(tx){return new Promise((res,rej)=>{tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error("abort"))})},
+  rq(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
+  get(n,k){return this.rq(this.d.transaction(n).objectStore(n).get(k))},
+  all(n){return this.rq(this.d.transaction(n).objectStore(n).getAll())},
+  byProfile(n,pid){return this.rq(this.d.transaction(n).objectStore(n).index("profileId").getAll(pid))},
+  async put(n,v){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).put(v);await this.done(tx)},
+  async putMany(n,arr){const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);arr.forEach(v=>os.put(v));await this.done(tx)},
+  async del(n,k){const tx=this.d.transaction(n,"readwrite");tx.objectStore(n).delete(k);await this.done(tx)},
+  async delMany(n,keys){if(!keys.length)return;const tx=this.d.transaction(n,"readwrite");const os=tx.objectStore(n);keys.forEach(k=>os.delete(k));await this.done(tx)},
+  async clearAll(){const names=["profiles","items","outfits","blobs","meta"];const tx=this.d.transaction(names,"readwrite");names.forEach(n=>tx.objectStore(n).clear());await this.done(tx)},
+  async deleteProfile(pid){const names=["items","outfits","blobs","profiles"];const tx=this.d.transaction(names,"readwrite");
+    for(const n of ["items","outfits","blobs"]){const os=tx.objectStore(n);const r=os.index("profileId").getAllKeys(pid);r.onsuccess=()=>r.result.forEach(k=>os.delete(k))}
+    tx.objectStore("profiles").delete(pid);await this.done(tx)},
+  async restore(data,blobs){const names=["profiles","items","outfits","blobs","meta"];const tx=this.d.transaction(names,"readwrite");
+    names.forEach(n=>tx.objectStore(n).clear());
+    data.profiles.forEach(v=>tx.objectStore("profiles").put(v));data.items.forEach(v=>tx.objectStore("items").put(v));
+    data.outfits.forEach(v=>tx.objectStore("outfits").put(v));blobs.forEach(v=>tx.objectStore("blobs").put(v));
+    if(data.activeProfile)tx.objectStore("meta").put({key:"activeProfile",value:data.activeProfile});
+    await this.done(tx)}
+};
+const urlCache = new Map();
+async function blobURL(id){if(!id)return "";if(urlCache.has(id))return urlCache.get(id);
+  const rec=await DB.get("blobs",id);if(!rec)return "";const u=URL.createObjectURL(new Blob([rec.buf],{type:rec.type}));urlCache.set(id,u);return u}
+function hydrate(root=document){$$("img[data-blob]",root).forEach(async img=>{const id=img.dataset.blob;if(img.dataset.done===id)return;img.dataset.done=id;const u=await blobURL(id);if(u)img.src=u;else img.remove()})}
+function clearURLs(){urlCache.forEach(u=>URL.revokeObjectURL(u));urlCache.clear()}
+async function saveBlob(blob,pid){const id="b_"+uid();const buf=await blob.arrayBuffer();await DB.put("blobs",{id,profileId:pid,type:blob.type||"image/jpeg",buf,createdAt:Date.now()});return id}
+async function deleteBlobs(ids){ids=ids.filter(Boolean);await DB.delMany("blobs",ids);ids.forEach(id=>{const u=urlCache.get(id);if(u){URL.revokeObjectURL(u);urlCache.delete(id)}})}
+
+/* 画像を端末内で縮小（大きな写真で容量を圧迫しないため） */
+async function processImage(file,max=1600,q=.86){
+  let src;
+  try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){
+    src=await new Promise((res,rej)=>{const u=URL.createObjectURL(file);const im=new Image();im.onload=()=>{res(im)};im.onerror=()=>rej(new Error("decode"));im.src=u})}
+  const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight;if(!w||!h)throw new Error("decode");
+  const s=Math.min(1,max/Math.max(w,h));const c=document.createElement("canvas");c.width=Math.round(w*s);c.height=Math.round(h*s);
+  const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(src,0,0,c.width,c.height);
+  return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error("encode")),"image/jpeg",q))}
+async function filesToBlobs(fileList){const out=[];let failed=0;for(const f of fileList){try{out.push(await processImage(f))}catch(e){failed++}}
+  if(failed)toast(`${failed}枚の画像を読み込めませんでした。JPEGかPNGの画像を選んでください。`);return out}
+
+/* ===== 状態 ===== */
+const S = {profiles:[],pid:null,items:[],outfits:[],tab:"closet",q:"",cat:"all",wcat:"all",wsort:"want",ofilter:"all",tryItem:null,tryPhoto:"front",ready:false};
+const prof = ()=>S.profiles.find(p=>p.id===S.pid);
+const itemById = id=>S.items.find(i=>i.id===id);
+function newProfile(name){return {id:"p_"+uid(),name:name.trim()||"プロフィール",createdAt:Date.now(),photos:{front:null,side:null,back:null},body:{},measuredAt:"",history:[],colors:[],tastes:[],fitPref:"regular",goals:[],sample:false}}
+
+async function boot(){
+  try{await DB.open()}catch(e){
+    $("#main").innerHTML=`<div class="empty-state"><h2>保存場所を開けませんでした</h2><p>このブラウザでは端末内にデータを保存できない状態です。プライベートブラウズを使っている場合は通常のタブで開いてください。サイトデータの保存を許可していない場合は、ブラウザの設定で許可してください。</p></div>`;return}
+  S.profiles=(await DB.all("profiles")).sort((a,b)=>a.createdAt-b.createdAt);
+  const m=await DB.get("meta","activeProfile");
+  S.pid=(m&&S.profiles.some(p=>p.id===m.value))?m.value:(S.profiles[0]?.id||null);
+  try{const t=localStorage.getItem("mc-tab");if(t)S.tab=t}catch(e){}
+  if(S.pid)await loadProfileData();
+  S.ready=true;render()}
+async function loadProfileData(){S.items=S.pid?await DB.byProfile("items",S.pid):[];S.outfits=S.pid?await DB.byProfile("outfits",S.pid):[]}
+async function switchProfile(id){S.pid=id;await DB.put("meta",{key:"activeProfile",value:id});S.tryItem=null;S.q="";S.cat="all";await loadProfileData();render()}
+async function saveProfile(p){p.updatedAt=Date.now();await DB.put("profiles",p);const i=S.profiles.findIndex(x=>x.id===p.id);if(i>=0)S.profiles[i]=p;else S.profiles.push(p)}
+
+/* ===== 描画 ===== */
+function render(){
+  if(!S.profiles.length){$("#top").hidden=true;$("#tabs").hidden=true;$("#main").innerHTML=viewWelcome();return}
+  $("#top").hidden=false;$("#tabs").hidden=false;
+  const p=prof();$("#pname").textContent=p?p.name:"";
+  $$(".tab").forEach(t=>t.setAttribute("aria-current",t.dataset.tab===S.tab?"page":"false"));
+  const v={closet:viewCloset,wish:viewWish,try:viewTry,coord:viewCoord,me:viewMe}[S.tab]||viewCloset;
+  $("#main").innerHTML=v()+footer();
+  hydrate($("#main"));
+}
+function footer(){return `<div class="foot">データはこの端末の中だけに保存されます ・ <button data-act="about">作った人／${esc(CONFIG.makerName)}</button></div>`}
+
+function viewWelcome(){return `<section class="hello">
+  <p class="mark">My<br>Closet</p>
+  <p class="tag">手持ちの服と、ほしい服と、自分のサイズを、ひとつの場所に。</p>
+  <div class="panel">
+    <h2>はじめに</h2>
+    <ul class="note" style="margin:0;padding-left:18px;display:grid;gap:4px">
+      <li>写真・寸法・服の情報は<b>この端末のブラウザの中だけ</b>に保存されます。運営者のサーバーには送られません。</li>
+      <li>ほかの端末とは<b>自動で同期されません</b>。スマホとPCで使う場合は、バックアップを書き出して読み込んでください。</li>
+      <li>ブラウザのデータ削除や容量不足で<b>消える可能性</b>があります。ときどき「設定 → バックアップを書き出す」で保存してください。</li>
+      <li>ログイン・メール登録・アクセス解析・広告はありません。</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <div class="field"><label for="w-name">最初のプロフィールの名前</label><input class="inp" id="w-name" maxlength="20" placeholder="例：自分の名前やニックネーム"></div>
+    <button class="btn primary block" data-act="createFirst">プロフィールを作ってはじめる</button>
+  </div>
+  <div class="panel"><h2>デザインを選ぶ（あとで設定から変えられます）</h2>${stylePicker()}</div>
+  <p class="note" style="text-align:center">操作を試したい場合は <button class="link" data-act="sample">架空のサンプルデータで試す</button><br>（実在の人物・私物ではありません。あとから削除できます）</p>
+</section>`}
+
+/* ---- カード ---- */
+function itemCard(it,act="openItem"){const ph=it.photoIds?.[0];const c=CAT[it.category];
+  const sub=it.kind==="wish"?[it.price!=null?yen(it.price):"",it.wantLevel?"★".repeat(it.wantLevel):""].filter(Boolean).join(" ・ "):[it.brand,it.size].filter(Boolean).join(" ・ ");
+  return `<button class="card" data-act="${act}" data-id="${it.id}">
+    <div class="ph">${ph?`<img data-blob="${ph}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}
+      ${it.isReference?'<span class="badge acc">基準</span>':""}${it.kind==="wish"&&act!=="openItem"?'<span class="badge r">ほしい</span>':""}</div>
+    <div class="cmeta"><span class="k">${esc(c?.l||"")}${it.color?" ・ "+esc(it.color):""}</span><b>${esc(it.name||c?.l||"名前なし")}</b><span>${esc(sub)||"&nbsp;"}</span></div></button>`}
+function matchesQ(it,q){if(!q)return true;q=q.toLowerCase();return [it.name,it.brand,it.color,it.size,it.notes,CAT[it.category]?.l,it.wishSize].some(v=>String(v||"").toLowerCase().includes(q))}
+
+/* ---- 1. Myクローゼット ---- */
+function viewCloset(){const all=S.items.filter(i=>i.kind==="closet");
+  return `<div class="vh"><h1>${hd("Closet","Myクローゼット","きょうの<br>クローゼット")}</h1><span class="sub num">${all.length}点<span class="sfx">あるよ！</span></span></div>
+  ${all.length?`<div class="search">${ICON.search}<input class="inp" id="closet-q" type="search" placeholder="名前・ブランド・色・メモで探す" value="${esc(S.q)}" aria-label="クローゼットを検索"></div>
+  <div class="chips" id="closet-chips">${catChips(all,S.cat,"cat")}</div><div id="closet-grid">${closetGrid()}</div>`
+  :`<div class="empty-state"><h2>まだ服がありません</h2><p>服・靴・バッグ・小物を写真で登録しましょう。ハンガーに掛けるか平置きして、正面から撮るときれいに並びます。</p><button class="btn primary" data-act="newItem" data-kind="closet">${ICON.plus}最初の1着を登録</button></div>`}
+  ${all.length?`<button class="btn dark fab" data-act="newItem" data-kind="closet">${ICON.plus}服を追加</button>`:""}`}
+function catChips(list,cur,act){const cnt=k=>list.filter(i=>i.category===k).length;
+  return `<button class="chip" data-act="${act}" data-v="all" aria-pressed="${cur==="all"}">すべて <span class="c">${list.length}</span></button>`+
+    CATS.filter(c=>cnt(c.k)).map(c=>`<button class="chip" data-act="${act}" data-v="${c.k}" aria-pressed="${cur===c.k}">${c.l} <span class="c">${cnt(c.k)}</span></button>`).join("")}
+function closetGrid(){const list=S.items.filter(i=>i.kind==="closet"&&(S.cat==="all"||i.category===S.cat)&&matchesQ(i,S.q)).sort((a,b)=>b.createdAt-a.createdAt);
+  return list.length?`<div class="grid">${list.map(i=>itemCard(i)).join("")}</div>`:`<div class="empty-state"><p>条件に合う服がありません。</p></div>`}
+
+/* ---- 2. ほしい物リスト ---- */
+function viewWish(){const all=S.items.filter(i=>i.kind==="wish");
+  const list=all.filter(i=>S.wcat==="all"||i.category===S.wcat).sort((a,b)=>S.wsort==="want"?((b.wantLevel||0)-(a.wantLevel||0)||b.createdAt-a.createdAt):S.wsort==="price"?((a.price??1e12)-(b.price??1e12)):b.createdAt-a.createdAt);
+  return `<div class="vh"><h1>${hd("Wish list","ほしい物","ほしい<br>もの")}</h1><span class="sub num">${all.length}点<span class="sfx">ほしい！</span></span></div>
+  ${all.length?`<p class="lede">価格は登録したときの価格です。自動では更新されません。</p>
+  <div class="chips">${catChips(all,S.wcat,"wcat")}</div>
+  <div class="row" style="margin:-4px 0 14px;font-size:12.5px;color:var(--muted)">並び順
+   ${[["want","欲しい度"],["new","新しい順"],["price","価格が安い順"]].map(([k,l])=>`<button class="chip" data-act="wsort" data-v="${k}" aria-pressed="${S.wsort===k}">${l}</button>`).join("")}</div>
+  <div class="grid wishgrid">${list.map(i=>itemCard(i)).join("")}</div>
+  <button class="btn dark fab" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button>`
+  :`<div class="empty-state"><h2>ほしい物はまだありません</h2><p>気になる服を、商品画像やサイズ表のスクリーンショット、商品URL、価格と一緒に保存できます。手持ちの服とのコーデや、サイズの比較にも使えます。</p><button class="btn primary" data-act="newItem" data-kind="wish">${ICON.plus}ほしい物を追加</button></div>`}`}
+
+/* ---- 3. 着せ替え ---- */
+function viewTry(){const p=prof();const items=S.items.slice().sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1)||b.createdAt-a.createdAt);
+  const it=itemById(S.tryItem);const phId=p.photos?.[S.tryPhoto];
+  return `<div class="vh"><h1>${hd("Fitting","着せ替え","きせかえ")}</h1></div>
+  <div class="notice warn"><b>AIによる画像試着は、まだ接続していません</b>この版では合成画像は作りません。下で全身写真と服を並べて見比べたり、寸法の相性を確認できます。</div>
+  <div class="panel"><h2>全身写真</h2>
+    <div class="chips" style="margin-bottom:0">${[["front","正面"],["side","横"],["back","後ろ"]].map(([k,l])=>`<button class="chip" data-act="tryPhoto" data-v="${k}" aria-pressed="${S.tryPhoto===k}">${l}${p.photos?.[k]?"":"（未登録）"}</button>`).join("")}</div></div>
+  <div class="panel"><h2>服を選ぶ</h2>
+   ${items.length?`<div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 96px" data-act="tryPick" data-id="${i.id}" aria-pressed="${S.tryItem===i.id}"><div class="ph" style="${S.tryItem===i.id?"outline:3px solid var(--accent);outline-offset:-3px":""}">${i.photoIds?.[0]?`<img data-blob="${i.photoIds[0]}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category]?.l)}</span></div></button>`).join("")}</div>`:`<p class="note">クローゼットかほしい物に服を登録すると、ここで選べます。</p>`}
+  </div>
+  ${it||phId?`<div class="side2" style="margin-bottom:6px">
+    <div class="ph" style="aspect-ratio:3/5">${phId?`<img data-blob="${phId}" alt="全身写真">`:`<div class="empty" style="text-align:center;padding:10px">全身写真が未登録です<br><button class="link" data-act="tab" data-tab="me">Myサイズで登録</button></div>`}</div>
+    <div class="ph" style="aspect-ratio:3/5">${it?.photoIds?.[0]?`<img data-blob="${it.photoIds[0]}" alt="服" style="object-fit:contain;background:var(--surface)">`:`<div class="empty">服を選んでください</div>`}</div></div>
+    <p class="note" style="margin:0 0 14px">並べて表示しています（合成画像ではありません）</p>`:""}
+  ${it?`<div class="panel"><h2>${esc(it.name||CAT[it.category]?.l)} の相性</h2>${fitPanel(it)}</div>`:""}
+  ${aiTryInfo()}`}
+function aiTryInfo(){return `<details class="help"><summary>AIで画像試着を使えるようになったら</summary>
+  <ul>
+   <li>全身写真と服の画像をもとに、着用イメージを2〜3パターン作って並べ、気に入ったものを保存できるようにする予定です。</li>
+   <li>実行ボタンを押したときだけ、<b>選んだ全身写真1枚と服の画像</b>をAIの会社へ送ります。送る前に、何をどこへ送るかを毎回表示します。</li>
+   <li>画像で自然に見えることと、実際にサイズが合うことは別です。生成画像は丈・着心地・締め付けを保証しません。顔・体形・服の色柄やロゴが変わることもあります。</li>
+   <li>画像生成AIの多くは、登録した寸法（cm）を画像に正確に反映できません。サイズの判断は、この画面の「寸法上のフィット」を使ってください。</li>
+   <li>費用：AIの利用料がかかります（使う人が自分のAIのキーを入れる方式を予定）。AIを使わない場合は、今の機能がすべて無料で使えます。</li>
+  </ul></details>`}
+
+/* ---- 4. コーデ ---- */
+function viewCoord(){const all=S.outfits;const f=S.ofilter;
+  const list=all.filter(o=>f==="all"||(f==="fav"?o.favorite:o.purpose===f)).sort((a,b)=>b.updatedAt-a.updatedAt);
+  return `<div class="vh"><h1>${hd("Outfits","コーデ","コーデ帳")}</h1><span class="sub num">${all.length}件<span class="sfx">つくった</span></span></div>
+  ${all.length?`<div class="chips">${[["all","すべて"],["fav","★ お気に入り"],...PURPOSES.map(p=>[p,p])].map(([k,l])=>`<button class="chip" data-act="ofilter" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join("")}</div>
+  <div class="grid">${list.map(o=>{const ids=outfitItemIds(o).slice(0,4);const ims=ids.map(id=>itemById(id)).filter(Boolean).map(i=>i.photoIds?.[0]).filter(Boolean).slice(0,4);
+    return `<button class="card" data-act="editOutfit" data-id="${o.id}"><div class="collage n${Math.min(ims.length,4)||1}" style="position:relative">${ims.length?ims.map(b=>`<div><img data-blob="${b}" alt=""></div>`).join(""):`<div style="display:grid;place-items:center;color:var(--muted);font-size:12px">写真なし</div>`}</div>
+    <div class="cmeta"><span class="k">${esc(o.purpose||"")}${o.favorite?" ・ ★":""}</span><b>${esc(o.name||"名前なしのコーデ")}</b><span>${ids.length}点</span></div></button>`}).join("")}</div>
+  ${list.length?"":`<div class="empty-state"><p>条件に合うコーデがありません。</p></div>`}
+  <button class="btn dark fab" data-act="newOutfit">${ICON.plus}コーデを作る</button>`
+  :`<div class="empty-state"><h2>コーデはまだありません</h2><p>手持ちの服とほしい物を組み合わせて、仕事・デート・旅行などの用途ごとに保存できます。</p><button class="btn primary" data-act="newOutfit">${ICON.plus}コーデを作る</button></div>`}`}
+function outfitItemIds(o){return SLOTS.flatMap(s=>o.slots?.[s.k]||[])}
+
+/* ---- 5. Myサイズ・プロフィール ---- */
+function bodyVal(b,k){const e=b?.[k];if(!e)return null;if(e.lr){const l=toNum(e.l),r=toNum(e.r);if(l==null&&r==null)return null;return {l,r,max:Math.max(l??-1,r??-1),avg:(l!=null&&r!=null)?(l+r)/2:(l??r)}}const v=toNum(e.v);return v==null?null:{v,max:v,avg:v}}
+function bodyText(b,k){const x=bodyVal(b,k);if(!x)return null;if(x.v!=null)return n1(x.v);return `左 ${x.l!=null?n1(x.l):"—"} / 右 ${x.r!=null?n1(x.r):"—"}`}
+function viewMe(){const p=prof();const b=p.body||{};const filled=BODY.filter(x=>x.req&&bodyVal(b,x.k)).length;
+  return `<div class="vh"><h1>${hd("My size","Myサイズ","Myサイズ")}</h1><span class="sub">${esc(p.name)}${p.sample?"（架空）":""}</span></div>
+  <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">全身写真</h2><button class="link" data-act="photoGuide">撮り方</button></div>
+   <div class="photo3">${[["front","正面"],["side","横"],["back","後ろ"]].map(([k,l])=>`<div><label class="ph filebtn" style="display:block" aria-label="${l}の写真を${p.photos?.[k]?"変更":"追加"}">${p.photos?.[k]?`<img data-blob="${p.photos[k]}" alt="${l}">`:`<span class="empty" style="text-align:center">${ICON.plus}<br>追加</span>`}<input type="file" accept="image/*" data-bodyphoto="${k}"></label><div class="cap">${l}${p.photos?.[k]?` ・ <button class="link" style="font-size:12px" data-act="rmBodyPhoto" data-v="${k}">外す</button>`:""}</div></div>`).join("")}</div>
+  </div>
+  <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:4px"><h2 style="margin:0">体の寸法</h2><span class="note">${p.measuredAt?`測定日 <span class="num">${fmtDate(p.measuredAt)}</span>`:"未測定"}</span></div>
+   <p class="note" style="margin:0 0 6px">基本 <span class="num">${filled}/9</span> 項目 ・ 服のゆとりは足さず、体そのものの寸法です</p>
+   <div class="mlist body">${BODY.map(x=>{const t=bodyText(b,x.k);return `<div class="mrow"><div class="nm">${x.l}${x.req?"":"<small>任意</small>"}</div><div class="val ${t?"":"na"}">${t?`${t}<span style="font-size:11px;color:var(--muted)"> cm</span>`:"未入力"}</div><button class="q" data-act="guide" data-k="${x.k}" aria-label="${x.l}の測り方">?</button></div>`}).join("")}</div>
+   <div class="row" style="margin-top:12px"><button class="btn primary grow" data-act="guide" data-k="height">採寸ガイドで入力</button><button class="btn" data-act="bodyEdit">まとめて編集</button></div>
+  </div>
+  ${(p.history||[]).length?`<div class="panel"><h2>更新履歴</h2><div class="hist">${historyHTML(p)}</div></div>`:""}
+  <div class="panel"><h2>体型の特徴</h2>${featuresHTML(p)}</div>
+  <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">好み・目的</h2><button class="link" data-act="prefEdit">編集</button></div>
+   <dl class="kv"><dt>好きな色</dt><dd>${p.colors?.length?p.colors.map(c=>`${swatch(c)} ${esc(c)}`).join("　"):"未設定"}</dd>
+   <dt>テイスト</dt><dd>${p.tastes?.length?esc(p.tastes.join("、")):"未設定"}</dd>
+   <dt>着心地</dt><dd>${esc((FITPREF.find(f=>f[0]===p.fitPref)||[])[1]||"未設定")}</dd>
+   <dt>目的</dt><dd>${p.goals?.length?esc(p.goals.join("、")):"未設定"}</dd></dl></div>
+  <div class="panel"><h2>似合わせの提案</h2>${suggestHTML(p)}</div>`}
+function historyHTML(p){const h=(p.history||[]).slice(-8).reverse();
+  return h.map((e,i)=>{const prev=h[i+1];const ch=prev?BODY.map(x=>{const a=bodyVal(e.body,x.k)?.avg,bb=bodyVal(prev.body,x.k)?.avg;return (a!=null&&bb!=null&&Math.abs(a-bb)>=.1)?`${x.l} ${signed(a-bb)}`:null}).filter(Boolean):[];
+    return `<div class="h"><span class="num">${fmtDate(e.date)}</span><span>${prev?(ch.length?esc(ch.join("、")):"変化なし"):"最初の記録"}</span></div>`}).join("")}
+
+/* 体型の特徴（寸法から説明できる範囲だけ。断定しない） */
+function bodyFeatures(b){const g=k=>bodyVal(b,k)?.avg;const h=g("height"),sh=g("shoulder"),ch=g("chest"),wa=g("waist"),hi=g("hip"),ins=g("inseam"),be=g("belly");
+  const out=[],miss=[];
+  if(h&&sh){const r=sh/h;out.push(r>=.265?{k:"shoulderWide",t:"肩がしっかりしている",d:`肩幅が身長の${Math.round(r*100)}%で、一般的な比率より広め`}:r<=.235?{k:"shoulderNarrow",t:"肩まわりがコンパクト",d:`肩幅が身長の${Math.round(r*100)}%で、一般的な比率より狭め`}:{k:"shoulderMid",t:"肩幅は標準的な範囲",d:`肩幅が身長の${Math.round(r*100)}%`})}else miss.push("身長・肩幅");
+  if(ch&&hi){const d=ch-hi;out.push(d>=4?{k:"upperVol",t:"上半身にボリュームがある",d:`胸囲がヒップより${n1(d)}cm大きい`}:d<=-4?{k:"lowerVol",t:"下半身にボリュームがある",d:`ヒップが胸囲より${n1(-d)}cm大きい`}:{k:"balanced",t:"上半身と下半身のボリュームが近い",d:`胸囲とヒップの差 ${n1(Math.abs(d))}cm`})}else miss.push("胸囲・ヒップ");
+  if(wa&&hi){const d=hi-wa;out.push(d>=28?{k:"curveLarge",t:"ウエストとヒップの差が大きい",d:`差 ${n1(d)}cm`}:d<=18?{k:"curveSmall",t:"ウエストとヒップの差が小さめ（直線的）",d:`差 ${n1(d)}cm`}:{k:"curveMid",t:"ウエストとヒップの差は標準的",d:`差 ${n1(d)}cm`})}else miss.push("ウエスト・ヒップ");
+  if(h&&ins){const r=ins/h;out.push(r>=.46?{k:"legLong",t:"脚が長め",d:`股下が身長の${Math.round(r*100)}%`}:r<=.42?{k:"torsoLong",t:"上半身が長め",d:`股下が身長の${Math.round(r*100)}%`}:{k:"legMid",t:"上半身と脚のバランスは標準的",d:`股下が身長の${Math.round(r*100)}%`})}else miss.push("身長・股下");
+  if(wa&&be&&be-wa>=6)out.push({k:"belly",t:"お腹周りがウエストより大きい",d:`差 ${n1(be-wa)}cm`});
+  return {out,miss}}
+function featuresHTML(p){const {out,miss}=bodyFeatures(p.body||{});
+  if(!out.length)return `<p class="note" style="margin:0">寸法が足りないため判断できません。${esc(miss.join("、"))} を入力すると表示されます。</p>`;
+  return `<div class="fit">${out.map(f=>`<div class="fitrow"><span class="st info">特徴</span><div>${esc(f.t)}<small>${esc(f.d)}</small></div></div>`).join("")}</div>
+  ${miss.length?`<p class="note" style="margin:10px 0 0">判断できない項目：${esc(miss.join("、"))} が未入力</p>`:""}
+  <p class="note" style="margin:10px 0 0">一般的な体の比率をもとにした目安です。良い・悪いを表すものではありません。骨格診断（ストレート・ウェーブ・ナチュラル）は寸法だけでは確定できないため、この版では表示していません。</p>`}
+function suggestHTML(p){const {out}=bodyFeatures(p.body||{});const ks=new Set(out.map(f=>f.k));const goals=p.goals||[];const cards=[];
+  const fav=(p.colors||[]).filter(c=>c!=="柄・その他");
+  const colorLine=fav.length?`好きな色（${fav.slice(0,2).join("・")}）をトップスか小物に入れ、全体は3色以内に`:"全体を3色以内にまとめると整って見えます（好きな色を登録すると具体的になります）";
+  if(ks.has("shoulderWide")||goals.includes("肩まわりを目立たせたくない"))cards.push({t:"肩まわりをすっきり見せる",s:"Vネック・深めの開き、ラグランやドロップショルダーの袖",b:"首元に縦の開きをつくり、肩の横幅より縦のラインが目に入るように",c:colorLine,r:ks.has("shoulderWide")?"肩幅が身長に対して広めなので、肩の端に視線が集まりにくい形が肩まわりの印象をやわらげます":"目的に「肩まわりを目立たせたくない」が選ばれているため"});
+  if(ks.has("shoulderNarrow"))cards.push({t:"肩にほどよく存在感を",s:"パフスリーブ、ボートネック、肩の線がはっきりしたジャケット",b:"上半身にやや張りのある素材を選ぶ",c:colorLine,r:"肩まわりがコンパクトなので、肩に形のあるデザインで上下のバランスが取りやすくなります"});
+  if(ks.has("upperVol"))cards.push({t:"上半身は軽く、下に重心を",s:"ハリのある素材のVネック、下はストレートやワイドのボトム",b:"トップスは体に沿いすぎない程度、ボトムに少しボリューム",c:"上を濃い色・下を明るい色にすると重心が下がります",r:"胸囲がヒップより大きいため、ボトム側に量感を足すと全体が整います"});
+  if(ks.has("lowerVol"))cards.push({t:"視線を上に集める",s:"Aライン・ストレートのボトム、襟や袖にデザインのあるトップス",b:"トップスに少し量感、ボトムはすとんと落ちる形",c:"トップスに明るい色や柄、ボトムは落ち着いた色に",r:"ヒップが胸囲より大きいため、上半身にポイントを置くとバランスが取りやすくなります"});
+  if(ks.has("curveLarge"))cards.push({t:"くびれを活かす",s:"ウエストマークのワンピース、フィット＆フレア",b:"ウエスト位置をはっきりさせ、上下どちらかに広がり",c:"ベルトや切り替えで色を分けると位置がわかりやすくなります",r:"ウエストとヒップの差が大きいため、ウエストを見せる形が体の線に沿います"});
+  if(ks.has("curveSmall"))cards.push({t:"直線的なシルエットで",s:"Iライン、ストレートパンツ、直線的なジャケット",b:"縦に長いラインをつくる丈",c:"同系色でまとめると縦の流れが続きます",r:"ウエストとヒップの差が小さめなので、まっすぐな形が体の線と合いやすくなります"});
+  if(ks.has("torsoLong")||goals.includes("脚を長く見せたい"))cards.push({t:"脚を長く見せる",s:"ハイウエストのボトム、トップスはタックインか短め丈",b:"ウエスト位置を高めに。ボトムと靴の色をそろえる",c:"ボトムと靴を同じ色か近い色に",r:ks.has("torsoLong")?"股下が身長に対して短めの比率なので、ウエスト位置を上げると脚の見える長さが増えます":"目的に「脚を長く見せたい」が選ばれているため"});
+  if(ks.has("legLong"))cards.push({t:"長めの丈も楽しめる",s:"ロング丈のトップスやコート、ワイドパンツ",b:"丈の長いアイテムを重ねても重く見えにくい",c:colorLine,r:"股下が身長に対して長めの比率のため、丈の長いアイテムでもバランスを取りやすいです"});
+  if(goals.includes("すっきり見せたい"))cards.push({t:"すっきり見せる",s:"縦のラインが出る羽織り、前を開けて着る",b:"体から離れすぎず、張り付きすぎないゆとり",c:"同系色や濃淡でまとめる",r:"目的に「すっきり見せたい」が選ばれているため"});
+  if(goals.includes("華やかにしたい"))cards.push({t:"顔まわりを華やかに",s:"襟・袖にデザインのあるトップス、光沢のある素材",b:"ポイントは1か所に絞る",c:fav.length?`好きな色（${fav[0]}）を顔の近くに`:"明るい色を顔の近くに",r:"目的に「華やかにしたい」が選ばれているため"});
+  if(goals.includes("落ち着いた印象にしたい"))cards.push({t:"落ち着いた印象に",s:"ベーシックな形のシャツ・ニット、きれいめのパンツ",b:"丈はひざ下〜くるぶし、ゆとりは標準",c:"ネイビー・グレー・ベージュなどを中心に",r:"目的に「落ち着いた印象にしたい」が選ばれているため"});
+  if(goals.includes("動きやすさを優先したい"))cards.push({t:"動きやすさを優先",s:"伸縮のある素材、ゆとりのあるパンツ",b:"肩・ひざまわりに余裕のあるもの",c:colorLine,r:"目的に「動きやすさを優先したい」が選ばれているため"});
+  if(!cards.length)return `<p class="note" style="margin:0">提案のための情報が足りません。体の寸法（身長・肩幅・胸囲・ウエスト・ヒップ・股下）か、好み・目的を登録すると表示されます。</p>`;
+  return cards.slice(0,5).map(c=>`<div class="sugg"><h3>${esc(c.t)}</h3><dl><dt>シルエット</dt><dd>${esc(c.s)}</dd><dt>丈・量感</dt><dd>${esc(c.b)}</dd><dt>色・組み合わせ</dt><dd>${esc(c.c)}</dd><dt>理由</dt><dd>${esc(c.r)}</dd></dl></div>`).join("")+
+  `<p class="note" style="margin:12px 0 0">寸法と、選んだ好み・目的から作った一般的な提案です（AIは使っていません）。似合う・似合わないを決めるものではないので、好きな服を選ぶ参考にしてください。</p>`}
+
+/* ===== 寸法の相性（AIなし・計算のみ） ===== */
+function gVal(row,k){const e=row?.m?.[k];const v=toNum(e?.v);if(v==null)return null;return GF[k].t?(e.mode==="round"?v:v*2):v}
+function rowOf(it){const r=it.rows||[];return r[it.kind==="wish"?(it.selRow??0):0]||r[0]||{label:"",m:{}}}
+function band(e,bands){for(const [max,st,txt] of bands){if(e<max)return [st,txt]}return bands[bands.length-1].slice(1)}
+function fitCheck(it,row){const p=prof();const b=p.body||{};const cat=it.category;const res=[];const st=it.stretch||"none";
+  const B=k=>bodyVal(b,k);const add=(label,status,text,sub)=>res.push({label,status,text,sub});
+  const ease=(gk,bk,label,bands,uses="avg")=>{const g=gVal(row,gk),bv=B(bk);if(g==null||!bv){add(label,"na","判断できません",`${g==null?"服の"+GF[gk].l:""}${g==null&&!bv?"と":""}${!bv?"体の"+BODYK[bk].l:""}が未入力`);return}
+    const body=uses==="max"?bv.max:bv.avg;const e=g-body;let [s,t]=band(e,bands);
+    if(e<0&&st!=="none")t+=st==="high"?"（よく伸びる素材なら着られる可能性があります）":"（少し伸びる素材でも窮屈になりやすいです）";
+    add(label,s,`服の周囲 ${n1(g)}cm − 体 ${n1(body)}cm ＝ ゆとり ${signed(e)}cm`,t)};
+  if(["tops","outer","onepiece"].includes(cat)){
+    const extra=cat==="outer"?6:0;
+    ease("bodyWidth","chest","胸まわり",[[0,"warn","服が体より小さい"],[4+extra,"ok","体に沿うぴったりめ"],[12+extra,"ok","ほどよいゆとり"],[22+extra,"ok","ゆったり"],[1e9,"info","かなりゆったり（オーバーサイズ）"]]);
+    const gs=toNum(row?.m?.shoulder?.v),bs=B("shoulder");
+    if(gs!=null&&bs){const d=gs-bs.avg;add("肩幅",Math.abs(d)<=2?"ok":d<-2?"warn":"info",`服 ${n1(gs)}cm − 体 ${n1(bs.avg)}cm ＝ ${signed(d)}cm`,Math.abs(d)<=2?"肩の位置がほぼ合う":d<-2?"服の肩幅が狭め。肩や腕を動かしにくいことがあります":"肩の縫い目が肩先より外に落ちる（ドロップショルダーなら意図どおりのことも）")}
+    else add("肩幅","na","判断できません",gs==null?"服の肩幅が未入力":"体の肩幅が未入力");
+    const sl=toNum(row?.m?.sleeve?.v),ar=B("arm");
+    if(sl!=null&&ar){const d=sl-ar.avg;add("袖丈",Math.abs(d)<=2?"ok":"info",`服 ${n1(sl)}cm − 腕 ${n1(ar.avg)}cm ＝ ${signed(d)}cm`,Math.abs(d)<=2?"袖口が手首あたり":d>2?"手首より長め":"手首より短め（7分袖などなら意図どおり）")}
+    else add("袖丈","na","判断できません",sl==null?"服の袖丈が未入力":"体の腕の長さが未入力");
+    if(cat==="onepiece")ease("waistG","waist","ウエスト",[[0,"warn","服が体より小さい"],[4,"ok","ぴったりめ"],[12,"ok","ほどよいゆとり"],[1e9,"info","ゆったり"]]);
+    add("着丈","na","体の寸法とは比べられません","着丈と比べられる体の寸法がないため。基準アイテムとの比較を使ってください");
+  }else if(cat==="pants"||cat==="skirt"){
+    ease("waistG","waist","ウエスト",[[-2,"warn","服が体より小さい"],[3,"ok","ぴったりめ"],[8,"ok","少し余裕"],[1e9,"info","ゆるめ（ベルト前提）"]]);
+    ease("hipG","hip","ヒップ",[[0,"warn","服が体より小さい"],[6,"ok","ぴったりめ"],[14,"ok","ほどよいゆとり"],[1e9,"info","ゆったり"]]);
+    if(cat==="pants"){
+      ease("thighW","thigh","太もも",[[0,"warn","服が体より小さい"],[6,"ok","ぴったりめ"],[14,"ok","ほどよいゆとり"],[1e9,"info","ゆったり"]],"max");
+      const gi=toNum(row?.m?.inseamG?.v),bi=B("inseam");
+      if(gi!=null&&bi){const d=bi.avg-gi;add("股下",d<-1?"info":"ok",`体 ${n1(bi.avg)}cm − 服 ${n1(gi)}cm ＝ ${signed(d)}cm`,d<-1?"裾が床に届く長さ。裾上げや厚底の靴が前提になりそうです":`裾は床からおよそ${n1(d)}cm上（股上の深さや靴で変わります）`)}
+      else add("股下","na","判断できません",gi==null?"服の股下が未入力":"体の股下が未入力");
+    }else add("丈","na","体の寸法とは比べられません","基準アイテムとの比較を使ってください");
+  }else add("体との比較","na","このカテゴリは体の寸法と比べていません","靴・バッグ・小物は、表記サイズやメモで確認してください");
+  return res}
+function refCompare(it,row){const ref=S.items.find(x=>x.kind==="closet"&&x.isReference&&x.category===it.category&&x.id!==it.id);if(!ref)return null;
+  const rr=rowOf(ref);const keys=CAT[it.category]?.f||[];const lines=keys.map(k=>{const a=gVal(row,k),bv=gVal(rr,k);return {k,a,b:bv,d:(a!=null&&bv!=null)?a-bv:null}});
+  return {ref,lines}}
+function fitPanel(it,rowIdx){const row=rowIdx!=null?(it.rows||[])[rowIdx]:rowOf(it);const fc=fitCheck(it,row);const rc=refCompare(it,row);const pref=prof().fitPref;
+  return `<p class="note" style="margin:0 0 4px">見た目の相性</p>
+   <div class="fitrow" style="margin-bottom:14px"><span class="st na">未判定</span><div style="font-size:13px">AIを接続していないため判定していません。体型の特徴からの一般的な提案は「Myサイズ」で見られます。</div></div>
+   <p class="note" style="margin:0 0 4px">寸法上のフィット（目安）${row?.label?` ・ サイズ ${esc(row.label)}`:""}</p>
+   <div class="fit">${fc.map(f=>`<div class="fitrow"><span class="st ${f.status}">${esc(f.label)}</span><div>${f.status==="na"?`${esc(f.text)}<small>${esc(f.sub||"")}</small>`:`${esc(f.sub||"")}<small>${esc(f.text)}</small>`}</div></div>`).join("")}</div>
+   ${rc?`<p class="note" style="margin:14px 0 4px">基準アイテム「${esc(rc.ref.name||CAT[rc.ref.category]?.l)}」との差（周囲は一周に換算）</p>
+    <div class="tbl-wrap"><table class="t"><tr><th>項目</th><th>この服</th><th>基準</th><th>差</th></tr>${rc.lines.map(l=>`<tr><td>${GF[l.k].l}</td><td class="num">${l.a!=null?n1(l.a):"—"}</td><td class="num">${l.b!=null?n1(l.b):"—"}</td><td class="num">${l.d!=null?signed(l.d):"—"}</td></tr>`).join("")}</table></div>`:
+    (it.kind==="closet"&&it.isReference?"":`<p class="note" style="margin:12px 0 0">ちょうどいい手持ちの服を「基準アイテム」にすると、服どうしの寸法も比べられます。</p>`)}
+   <p class="note" style="margin:12px 0 0">素材：${esc((STRETCH.find(s=>s[0]===(it.stretch||"none"))||[])[1])} ・ 好みの着心地：${esc((FITPREF.find(f=>f[0]===pref)||[])[1]||"未設定")}。数値は目安で、素材の伸び・厚み・デザインや好みのゆとりで感じ方は変わります。</p>`}
+
+/* ===== シート・ダイアログ ===== */
+const sheets=[];
+function openSheet({title,body,foot="",onMount,cls=""}){const w=document.createElement("div");w.className="sheet-wrap";
+  w.innerHTML=`<div class="sheet ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-h"><h2>${esc(title)}</h2><button class="iconbtn" data-act="closeSheet" aria-label="閉じる">${ICON.close}</button></div><div class="sheet-b">${body}</div>${foot?`<div class="sheet-f">${foot}</div>`:""}</div>`;
+  w.addEventListener("click",e=>{if(e.target===w)closeSheet()});$("#layer").appendChild(w);sheets.push(w);document.body.style.overflow="hidden";
+  hydrate(w);onMount&&onMount(w);return w}
+function closeSheet(){const w=sheets.pop();if(w)w.remove();if(!sheets.length)document.body.style.overflow=""}
+function setSheet(w,{body,foot}){const sc=$(".sheet-b",w).scrollTop;if(body!=null)$(".sheet-b",w).innerHTML=body;if(foot!=null&&$(".sheet-f",w))$(".sheet-f",w).innerHTML=foot;$(".sheet-b",w).scrollTop=sc;hydrate(w)}
+function confirmDialog({title,body="",ok="OK",cancel="キャンセル",danger=false}){return new Promise(res=>{const w=document.createElement("div");w.className="modal-wrap";
+  w.innerHTML=`<div class="modal" role="alertdialog" aria-modal="true"><h2>${esc(title)}</h2>${body?`<p>${esc(body)}</p>`:""}<div class="row end"><button class="btn sm" data-x="0">${esc(cancel)}</button><button class="btn sm ${danger?"danger":"primary"}" data-x="1">${esc(ok)}</button></div></div>`;
+  w.addEventListener("click",e=>{const b=e.target.closest("[data-x]");if(b||e.target===w){w.remove();res(!!(b&&b.dataset.x==="1"))}});document.body.appendChild(w);$('[data-x="1"]',w).focus()})}
+let toastT;function toast(msg){$$(".toast").forEach(t=>t.remove());const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),2800)}
+
+/* ===== 服の登録・編集 ===== */
+function blankRow(label=""){return {label,m:{}}}
+function itemEditor(it,kind){
+  const d=it?JSON.parse(JSON.stringify({...it,photoIds:undefined})):{id:null,kind,category:"tops",name:"",brand:"",color:"",size:"",price:null,wantLevel:3,wishSize:"",url:"",notes:"",stretch:"none",rows:[blankRow()],selRow:0,isReference:false};
+  d.photos=(it?.photoIds||[]).map(id=>({id,existing:true}));d.removed=[];if(!d.rows?.length)d.rows=[blankRow()];
+  const isWish=d.kind==="wish";
+  const body=()=>{const c=CAT[d.category];return `
+   <div class="thumbs">${d.photos.map((ph,i)=>`<div class="thumb">${ph.existing?`<img data-blob="${ph.id}" alt="">`:`<img src="${ph.url}" alt="">`}<button class="x" data-ed="rmPhoto" data-i="${i}" aria-label="写真を外す">×</button></div>`).join("")}</div>
+   <div class="row" style="margin-bottom:10px">
+     <label class="btn sm filebtn">${ICON.camera}撮影する<input type="file" accept="image/*" capture="environment" data-ed="addPhoto"></label>
+     <label class="btn sm filebtn">${ICON.image}画像を選ぶ<input type="file" accept="image/*" multiple data-ed="addPhoto"></label></div>
+   <details class="help"><summary>${isWish?"取り込みのコツ":"撮影のコツ"}</summary><ul>
+     ${isWish?`<li>商品画像やサイズ表は、スクリーンショットを撮って「画像を選ぶ」から追加できます。</li><li>商品URLは保存だけ行います。この版では商品ページから画像や情報を自動で取り込みません。</li>`:""}
+     <li>ハンガーに掛けるか平置きにして、服全体が入るよう正面から撮ります。</li><li>明るい場所で、無地の床・壁など背景はシンプルに。</li><li>必要なら背面・タグ・素材表示の写真も追加しておくと便利です。</li></ul></details>
+   <div class="field"><span class="lbl">カテゴリ</span><div class="chips wrap" style="margin:0">${CATS.map(x=>`<button class="chip" data-ed="cat" data-v="${x.k}" aria-pressed="${d.category===x.k}">${x.l}</button>`).join("")}</div></div>
+   <div class="field"><label for="ed-name">名前</label><input class="inp" id="ed-name" data-f="name" value="${esc(d.name)}" placeholder="例：白のオックスフォードシャツ" maxlength="60"></div>
+   <div class="side2"><div class="field"><label for="ed-brand">ブランド</label><input class="inp" id="ed-brand" data-f="brand" value="${esc(d.brand)}" maxlength="40"></div>
+   ${isWish?`<div class="field"><label for="ed-price">価格（登録時点）</label><input class="inp num" id="ed-price" data-f="price" inputmode="numeric" value="${d.price??""}" placeholder="円"></div>`
+     :`<div class="field"><label for="ed-size">サイズ表記</label><input class="inp" id="ed-size" data-f="size" value="${esc(d.size)}" placeholder="例：M / 38" maxlength="20"></div>`}</div>
+   <div class="field"><span class="lbl">色</span><div class="chips wrap" style="margin:0">${COLORS.map(([n,h])=>`<button class="chip" data-ed="color" data-v="${esc(n)}" aria-pressed="${d.color===n}"><i class="sw" style="background:${h}"></i>${esc(n)}</button>`).join("")}</div></div>
+   ${isWish?`<div class="side2"><div class="field"><label for="ed-wsize">希望サイズ</label><input class="inp" id="ed-wsize" data-f="wishSize" value="${esc(d.wishSize)}" maxlength="20"></div>
+     <div class="field"><span class="lbl">欲しい度</span><div class="stars">${[1,2,3,4,5].map(n=>`<button data-ed="want" data-v="${n}" class="${(d.wantLevel||0)>=n?"on":""}" aria-label="欲しい度${n}">★</button>`).join("")}</div></div></div>`:""}
+   <div class="field"><label for="ed-url">商品URL</label><input class="inp" id="ed-url" data-f="url" type="url" inputmode="url" value="${esc(d.url)}" placeholder="https://"><span class="note">保存のみ。自動取得は行いません。</span></div>
+   ${c.f.length?`<div class="row" style="justify-content:space-between;margin:20px 0 8px"><span class="sec-h" style="margin:0">${isWish?"サイズ表（cm）":"服の寸法（cm）"}</span><button class="link" data-act="garmentGuide">服の測り方</button></div>
+   <p class="note" style="margin:0 0 10px">わからない値は空欄のままで保存できます。「平置き」は平らに置いた幅、「一周」は周囲の長さです。${isWish?"購入候補にするサイズの行を選んでください。":""}</p>
+   ${d.rows.map((r,ri)=>`<div class="sizerow ${isWish&&d.selRow===ri?"sel":""}">
+     ${isWish?`<div class="row" style="margin-bottom:10px"><input class="inp" style="max-width:9em;padding:7px 10px" data-row="${ri}" data-rf="label" value="${esc(r.label)}" placeholder="サイズ名" aria-label="サイズ名">
+       <button class="chip" data-ed="selRow" data-i="${ri}" aria-pressed="${d.selRow===ri}">${d.selRow===ri?"購入候補":"候補にする"}</button>${d.rows.length>1?`<button class="link" style="margin-left:auto" data-ed="rmRow" data-i="${ri}">行を削除</button>`:""}</div>`:""}
+     <div class="mgrid">${c.f.map(k=>{const e=r.m[k]||{};const md=e.mode||"flat";return `<div class="minp"><label for="m-${ri}-${k}"><span>${GF[k].t&&md==="round"?(GF[k].rl||GF[k].l):GF[k].l}</span>${GF[k].t?`<span class="seg"><button data-ed="mode" data-row="${ri}" data-k="${k}" data-v="flat" aria-pressed="${md==="flat"}">平置き</button><button data-ed="mode" data-row="${ri}" data-k="${k}" data-v="round" aria-pressed="${md==="round"}">一周</button></span>`:""}</label>
+       <div class="unit"><input class="inp" id="m-${ri}-${k}" inputmode="decimal" data-row="${ri}" data-k="${k}" value="${e.v??""}"></div></div>`}).join("")}</div></div>`).join("")}
+   ${isWish?`<button class="btn sm" data-ed="addRow">${ICON.plus}サイズの行を追加</button>`:""}
+   <div class="field" style="margin-top:16px"><span class="lbl">素材の伸び</span><div class="chips wrap" style="margin:0">${STRETCH.map(([k,l])=>`<button class="chip" data-ed="stretch" data-v="${k}" aria-pressed="${d.stretch===k}">${l}</button>`).join("")}</div></div>`:
+   `<p class="note" style="margin:18px 0 0">このカテゴリは寸法の入力欄がありません。サイズ感はメモに残せます。</p>`}
+   <div class="field" style="margin-top:16px"><label for="ed-notes">メモ</label><textarea class="inp" id="ed-notes" data-f="notes" maxlength="1000">${esc(d.notes)}</textarea></div>`};
+  const foot=`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-ed="save">保存</button>`;
+  const w=openSheet({title:it?"編集":isWish?"ほしい物を追加":"服を登録",body:body(),foot});
+  const re=()=>setSheet(w,{body:body()});
+  w.addEventListener("input",e=>{const t=e.target;
+    if(t.dataset.f){d[t.dataset.f]=t.dataset.f==="price"?toNum(t.value):t.value}
+    else if(t.dataset.k&&t.dataset.row!=null){const r=d.rows[+t.dataset.row];r.m[t.dataset.k]={...(r.m[t.dataset.k]||{}),v:t.value===""?null:toNum(t.value)}}
+    else if(t.dataset.rf){d.rows[+t.dataset.row].label=t.value}});
+  w.addEventListener("change",async e=>{const t=e.target;if(t.dataset.ed!=="addPhoto"||!t.files?.length)return;
+    const blobs=await filesToBlobs(t.files);blobs.forEach(b=>d.photos.push({id:"t_"+uid(),blob:b,url:URL.createObjectURL(b)}));t.value="";re()});
+  w.addEventListener("click",async e=>{const b=e.target.closest("[data-ed]");if(!b)return;e.preventDefault();const a=b.dataset.ed;
+    if(a==="cat"){d.category=b.dataset.v;re()}
+    else if(a==="color"){d.color=d.color===b.dataset.v?"":b.dataset.v;re()}
+    else if(a==="want"){d.wantLevel=+b.dataset.v;re()}
+    else if(a==="stretch"){d.stretch=b.dataset.v;re()}
+    else if(a==="mode"){const r=d.rows[+b.dataset.row];r.m[b.dataset.k]={...(r.m[b.dataset.k]||{}),mode:b.dataset.v};re()}
+    else if(a==="selRow"){d.selRow=+b.dataset.i;if(!d.wishSize&&d.rows[d.selRow].label)d.wishSize=d.rows[d.selRow].label;re()}
+    else if(a==="addRow"){d.rows.push(blankRow());re()}
+    else if(a==="rmRow"){const i=+b.dataset.i;d.rows.splice(i,1);if(d.selRow>=d.rows.length)d.selRow=d.rows.length-1;else if(d.selRow>i)d.selRow--;re()}
+    else if(a==="rmPhoto"){const [ph]=d.photos.splice(+b.dataset.i,1);if(ph.existing)d.removed.push(ph.id);else URL.revokeObjectURL(ph.url);re()}
+    else if(a==="save"){b.disabled=true;try{
+      const ids=[];for(const ph of d.photos){ids.push(ph.existing?ph.id:await saveBlob(ph.blob,S.pid));if(!ph.existing)URL.revokeObjectURL(ph.url)}
+      await deleteBlobs(d.removed);
+      const rec={id:d.id||"i_"+uid(),profileId:S.pid,kind:d.kind,category:d.category,name:d.name.trim(),brand:d.brand.trim(),color:d.color,size:(d.size||"").trim(),
+        price:d.kind==="wish"?d.price:(it?.price??null),wantLevel:d.kind==="wish"?d.wantLevel:null,wishSize:(d.wishSize||"").trim(),url:(d.url||"").trim(),notes:d.notes,stretch:d.stretch,
+        rows:d.rows.map(r=>({label:(r.label||"").trim(),m:Object.fromEntries(Object.entries(r.m).filter(([k])=>CAT[d.category].f.includes(k)))})),selRow:d.selRow||0,
+        isReference:!!d.isReference,photoIds:ids,createdAt:it?.createdAt||Date.now(),updatedAt:Date.now(),purchasedAt:it?.purchasedAt||null,priceAt:d.kind==="wish"?(it?.priceAt&&it.price===d.price?it.priceAt:today()):(it?.priceAt||null)};
+      await DB.put("items",rec);const i=S.items.findIndex(x=>x.id===rec.id);if(i>=0)S.items[i]=rec;else S.items.push(rec);
+      closeSheet();if(it)closeSheet();render();toast("保存しました");if(it)openItem(rec.id)}catch(err){b.disabled=false;toast("保存できませんでした。端末の空き容量を確認してください。")}}
+  })}
+
+/* 服の詳細 */
+function openItem(id){const it=itemById(id);if(!it)return;const c=CAT[it.category];const isWish=it.kind==="wish";const r=rowOf(it);
+  const similar=isWish?S.items.filter(x=>x.kind==="closet"&&x.category===it.category).sort((a,b)=>(b.color===it.color)-(a.color===it.color)).slice(0,6):[];
+  const body=`
+   ${it.photoIds?.length?`<div class="strip">${it.photoIds.map(p=>`<div class="ph"><img data-blob="${p}" alt=""></div>`).join("")}</div>`:`<div class="ph" style="aspect-ratio:16/9;margin-bottom:14px"><div class="empty">写真なし</div></div>`}
+   <p class="note" style="margin:0">${esc(c?.l)}${it.isReference?" ・ 基準アイテム":""}${isWish?" ・ ほしい物":""}</p>
+   <h3 style="font-family:var(--f-display);font-size:22px;margin:2px 0 12px;font-weight:700">${esc(it.name||c?.l)}</h3>
+   <div class="actions3">
+     <button class="btn" data-act="tryThis" data-id="${it.id}">${ICON.person}着てみる</button>
+     <button class="btn" data-act="matchThis" data-id="${it.id}">${ICON.search}合う服を探す</button>
+     <button class="btn" data-act="outfitWith" data-id="${it.id}">${ICON.grid}コーデに保存</button></div>
+   <div class="panel"><dl class="kv">
+     ${it.brand?`<dt>ブランド</dt><dd>${esc(it.brand)}</dd>`:""}${it.color?`<dt>色</dt><dd>${swatch(it.color)} ${esc(it.color)}</dd>`:""}
+     ${!isWish&&it.size?`<dt>サイズ</dt><dd>${esc(it.size)}</dd>`:""}${isWish&&it.wishSize?`<dt>希望サイズ</dt><dd>${esc(it.wishSize)}</dd>`:""}
+     ${it.price!=null?`<dt>${isWish?"価格":"購入時の価格"}</dt><dd class="num">${yen(it.price)} <span class="note">（${fmtDate(it.priceAt)||"登録時"}時点）</span></dd>`:""}
+     ${isWish&&it.wantLevel?`<dt>欲しい度</dt><dd style="color:var(--accent)">${"★".repeat(it.wantLevel)}<span style="color:var(--line)">${"★".repeat(5-it.wantLevel)}</span></dd>`:""}
+     ${it.purchasedAt?`<dt>購入日</dt><dd class="num">${fmtDate(it.purchasedAt)}</dd>`:""}
+     ${it.url?`<dt>商品URL</dt><dd><a class="link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.url.replace(/^https?:\/\//,"").slice(0,40))}${it.url.length>48?"…":""}</a></dd>`:""}
+     ${it.notes?`<dt>メモ</dt><dd style="white-space:pre-wrap">${esc(it.notes)}</dd>`:""}
+     ${!it.brand&&!it.color&&!it.size&&!it.url&&!it.notes&&it.price==null?`<dt>情報</dt><dd class="note">まだ詳しい情報がありません</dd>`:""}
+   </dl></div>
+   ${c.f.length?`<div class="panel"><h2>${isWish?"サイズ表":"寸法"}（cm）</h2>
+     <div class="tbl-wrap"><table class="t"><tr><th>${isWish?"サイズ":"項目"}</th>${isWish?c.f.map(k=>`<th>${GF[k].l}</th>`).join(""):"<th>寸法</th>"}</tr>
+     ${isWish?(it.rows||[]).map((rw,i)=>`<tr class="${i===(it.selRow??0)?"sel":""}"><td>${esc(rw.label||"—")}${i===(it.selRow??0)?" ・候補":""}</td>${c.f.map(k=>`<td class="num">${rw.m?.[k]?.v!=null?n1(rw.m[k].v)+(GF[k].t?(rw.m[k].mode==="round"?"":"<small>平</small>"):""):"—"}</td>`).join("")}</tr>`).join("")
+       :c.f.map(k=>`<tr><td>${GF[k].t&&r.m?.[k]?.mode==="round"?(GF[k].rl||GF[k].l)+"（一周）":GF[k].l+(GF[k].t?"（平置き）":"")}</td><td class="num">${r.m?.[k]?.v!=null?n1(r.m[k].v):"—"}</td></tr>`).join("")}</table></div></div>`:""}
+   <div class="panel"><h2>サイズの相性</h2>${fitPanel(it)}</div>
+   ${isWish?`<div class="panel"><h2>持っている似た服</h2>${similar.length?`<div class="pick">${similar.map(x=>itemCard(x,"openItem2")).join("")}</div><p class="note" style="margin:10px 0 0">同じカテゴリの手持ち服（同じ色を先に表示）</p>`:`<p class="note" style="margin:0">同じカテゴリの服はクローゼットにありません。</p>`}</div>`:""}
+   <div class="row" style="margin-top:6px">
+    ${isWish?`<button class="btn primary grow" data-act="moveToCloset" data-id="${it.id}">購入した → Myクローゼットへ移動</button>`:
+      `<button class="btn grow" data-act="toggleRef" data-id="${it.id}">${it.isReference?"基準アイテムから外す":"このカテゴリの基準アイテムにする"}</button>`}</div>
+   <div class="row" style="margin-top:10px"><button class="btn grow" data-act="editItem" data-id="${it.id}">編集</button><button class="btn danger" data-act="deleteItem" data-id="${it.id}">削除</button></div>`;
+  openSheet({title:isWish?"ほしい物":"Myクローゼット",body})}
+
+/* 合う服を探す（AIなし：組み合わせられるカテゴリを表示） */
+function matchItem(id){const it=itemById(id);const cats=MATCH[it.category]||[];const sel=new Set();
+  const groups=cats.map(c=>({c,list:S.items.filter(x=>x.category===c&&x.id!==id)})).filter(g=>g.list.length);
+  const body=()=>`<div class="notice"><b>AIを使わない簡易表示です</b>「${esc(it.name||CAT[it.category].l)}」と組み合わせられるカテゴリの服を並べています。選んでそのままコーデにできます。</div>
+   ${groups.length?groups.map(g=>`<p class="sec-h">${CAT[g.c].l}</p><div class="pick" style="margin-bottom:16px">${g.list.map(x=>`<button class="card" data-pk="${x.id}" aria-pressed="${sel.has(x.id)}"><div class="ph">${x.photoIds?.[0]?`<img data-blob="${x.photoIds[0]}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}${x.kind==="wish"?'<span class="badge">ほしい</span>':""}<span class="tick">✓</span></div><div class="cmeta"><span>${esc(x.name||CAT[x.category].l)}</span></div></button>`).join("")}</div>`).join("")
+     :`<p class="note">組み合わせられる服がまだ登録されていません。</p>`}`;
+  const w=openSheet({title:"合う服を探す",body:body(),foot:`<button class="btn" data-act="closeSheet">閉じる</button><button class="btn primary" data-mk="1">選んだ服でコーデを作る</button>`});
+  w.addEventListener("click",e=>{const p=e.target.closest("[data-pk]");if(p){sel.has(p.dataset.pk)?sel.delete(p.dataset.pk):sel.add(p.dataset.pk);setSheet(w,{body:body()});return}
+    if(e.target.closest("[data-mk]")){const ids=[id,...sel];closeSheet();outfitEditor(null,ids)}})}
+
+/* ===== コーデ編集 ===== */
+function slotFor(it){if(it.category==="onepiece")return "tops";return (SLOTS.find(s=>s.cats.includes(it.category))||SLOTS[0]).k}
+function outfitEditor(o,presetIds=[]){
+  const d=o?JSON.parse(JSON.stringify(o)):{id:null,name:"",purpose:"普段",slots:{tops:[],bottoms:[],shoes:[],bag:[],acc:[]},favorite:false,notes:""};
+  presetIds.forEach(id=>{const it=itemById(id);if(it){const k=slotFor(it);if(!d.slots[k].includes(id))d.slots[k].push(id)}});
+  const body=()=>`<div class="field"><label for="o-name">コーデの名前</label><input class="inp" id="o-name" data-of="name" value="${esc(d.name)}" placeholder="例：週末のカフェ" maxlength="40"></div>
+   <div class="field"><span class="lbl">用途</span><div class="chips wrap" style="margin:0">${PURPOSES.map(p=>`<button class="chip" data-oe="purpose" data-v="${p}" aria-pressed="${d.purpose===p}">${p}</button>`).join("")}</div></div>
+   <div class="panel" style="padding-block:4px">${SLOTS.map(s=>{const ids=d.slots[s.k]||[];return `<div class="slot"><span class="sl">${s.l}</span><div class="its">${ids.map(id=>{const it=itemById(id);if(!it)return "";return `<div class="mini">${it.photoIds?.[0]?`<img data-blob="${it.photoIds[0]}" alt="${esc(it.name)}">`:""}${it.kind==="wish"?'<span class="w">ほしい</span>':""}</div>`}).join("")||`<span class="note">なし</span>`}</div><button class="btn sm" data-oe="pick" data-v="${s.k}">選ぶ</button></div>`}).join("")}</div>
+   <div class="row" style="margin-bottom:14px"><button class="chip" data-oe="fav" aria-pressed="${d.favorite}">★ お気に入り${d.favorite?"に登録中":"にする"}</button></div>
+   <div class="field"><label for="o-notes">メモ</label><textarea class="inp" id="o-notes" data-of="notes" maxlength="1000">${esc(d.notes)}</textarea></div>
+   ${o?`<button class="btn danger block" data-oe="delete">このコーデを削除</button>`:""}
+   <p class="note" style="margin-top:12px">AIを接続すると、登録した服と好みからコーデの提案もできるようになる予定です。</p>`;
+  const w=openSheet({title:o?"コーデを編集":"コーデを作る",body:body(),foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-oe="save">保存</button>`});
+  const re=()=>setSheet(w,{body:body()});
+  w.addEventListener("input",e=>{const t=e.target;if(t.dataset.of)d[t.dataset.of]=t.value});
+  w.addEventListener("click",async e=>{const b=e.target.closest("[data-oe]");if(!b)return;const a=b.dataset.oe;
+    if(a==="purpose"){d.purpose=b.dataset.v;re()}
+    else if(a==="fav"){d.favorite=!d.favorite;re()}
+    else if(a==="pick"){pickItems(SLOTS.find(s=>s.k===b.dataset.v),d.slots[b.dataset.v],ids=>{d.slots[b.dataset.v]=ids;re()})}
+    else if(a==="delete"){if(await confirmDialog({title:"このコーデを削除しますか？",body:"服そのものは削除されません。",ok:"削除",danger:true})){await DB.del("outfits",o.id);S.outfits=S.outfits.filter(x=>x.id!==o.id);closeSheet();render();toast("削除しました")}}
+    else if(a==="save"){const ids=outfitItemIds(d);if(!ids.length){toast("服を1点以上選んでください");return}
+      const rec={...d,id:d.id||"o_"+uid(),profileId:S.pid,name:d.name.trim(),createdAt:d.createdAt||Date.now(),updatedAt:Date.now()};
+      await DB.put("outfits",rec);const i=S.outfits.findIndex(x=>x.id===rec.id);if(i>=0)S.outfits[i]=rec;else S.outfits.push(rec);
+      closeSheet();S.tab="coord";render();toast("コーデを保存しました")}})}
+function pickItems(slot,cur,done){const sel=new Set(cur);const list=S.items.filter(i=>slot.cats.includes(i.category)).sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1));
+  const body=()=>list.length?`<div class="pick">${list.map(x=>`<button class="card" data-pk="${x.id}" aria-pressed="${sel.has(x.id)}"><div class="ph">${x.photoIds?.[0]?`<img data-blob="${x.photoIds[0]}" alt="">`:`<div class="empty">${ICON.shirt}</div>`}${x.kind==="wish"?'<span class="badge">ほしい</span>':""}<span class="tick">✓</span></div><div class="cmeta"><span>${esc(x.name||CAT[x.category].l)}</span></div></button>`).join("")}</div>`:`<p class="note">${slot.l}がまだ登録されていません。</p>`;
+  const w=openSheet({title:`${slot.l}を選ぶ`,body:body(),foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-pkok="1">決定</button>`});
+  w.addEventListener("click",e=>{const p=e.target.closest("[data-pk]");if(p){sel.has(p.dataset.pk)?sel.delete(p.dataset.pk):sel.add(p.dataset.pk);setSheet(w,{body:body()});return}
+    if(e.target.closest("[data-pkok]")){closeSheet();done([...sel])}})}
+
+/* ===== 採寸ガイド ===== */
+function bodySVG(k){const A="var(--accent)";const L=`stroke="${A}" stroke-width="2.4" fill="none" stroke-linecap="round"`;
+  const fig=`<g fill="var(--photo)" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round">
+    <circle cx="80" cy="28" r="15"/><path d="M74 42h12v10H74z"/>
+    <path d="M47 58Q80 49 113 58L118 70 122 128 124 188 116 190 112 132 108 100 104 126 108 160 106 178 96 282H84L81 184H79L76 282H64L54 178 52 160 56 126 52 100 48 132 44 190 36 188 38 128 42 70Z"/></g>`;
+  const lines={
+    height:`<line x1="140" y1="12" x2="140" y2="284" ${L}/><line x1="58" y1="13" x2="146" y2="13" ${L}/><path d="M135 22l5-9 5 9M135 274l5 9 5-9" ${L}/>`,
+    shoulder:`<path d="M46 60Q80 50 114 60" ${L}/><circle cx="46" cy="60" r="3" fill="${A}"/><circle cx="114" cy="60" r="3" fill="${A}"/>`,
+    chest:`<ellipse cx="80" cy="84" rx="33" ry="5" ${L}/>`, waist:`<ellipse cx="80" cy="120" rx="25" ry="4" ${L}/>`,
+    belly:`<ellipse cx="80" cy="132" rx="26" ry="4" ${L}/><circle cx="80" cy="132" r="2" fill="${A}"/>`, hip:`<ellipse cx="80" cy="160" rx="29" ry="5" ${L}/>`,
+    inseam:`<line x1="80" y1="183" x2="80" y2="283" ${L}/><line x1="68" y1="182" x2="92" y2="182" ${L}/>`,
+    thigh:`<ellipse cx="68" cy="194" rx="13" ry="3.5" ${L}/>`, arm:`<polyline points="46,60 40,128 41,188" ${L}/><circle cx="40" cy="128" r="2.6" fill="${A}"/>`,
+    neck:`<ellipse cx="80" cy="49" rx="8" ry="2.6" ${L}/>`, upperArm:`<ellipse cx="45" cy="96" rx="7" ry="2.6" ${L}/>`, calf:`<ellipse cx="70" cy="240" rx="9" ry="2.6" ${L}/>`};
+  return `<svg viewBox="0 0 160 296" role="img" aria-label="${esc(BODYK[k].l)}の測る位置">${fig}${lines[k]||""}</svg>`}
+function measureGuide(startKey){const p=prof();const b=JSON.parse(JSON.stringify(p.body||{}));let i=Math.max(0,BODY.findIndex(x=>x.k===startKey));let date=p.measuredAt&&p.measuredAt===today()?p.measuredAt:today();
+  const body=()=>{const x=BODY[i];const e=b[x.k]||{};return `<div class="prog">${BODY.map((_,j)=>`<i class="${j<=i?"on":""}"></i>`).join("")}</div>
+   <div class="gstep"><p class="note" style="margin:0 0 2px"><span class="num">${i+1}/${BODY.length}</span>${x.req?"":" ・ 任意"}</p><h3>${x.l}</h3>
+   <div class="guide-fig">${bodySVG(x.k)}</div><p>${esc(BGUIDE[x.k])}</p>
+   ${i===0?`<div class="notice" style="font-size:12.5px">薄着・裸足で自然に立ちます。お腹はへこませず、メジャーは締め付けません。測った体の寸法に、服のゆとりは足さずにそのまま入力してください。</div>`:""}
+   ${x.lr?`<div class="row" style="margin-bottom:10px"><button class="chip" data-g="lr" aria-pressed="${!!e.lr}">左右で別に入力する</button></div>`:""}
+   ${e.lr?`<div class="lr"><div class="minp"><label for="g-l">左</label><div class="unit"><input class="inp" id="g-l" inputmode="decimal" data-gv="l" value="${e.l??""}"></div></div><div class="minp"><label for="g-r">右</label><div class="unit"><input class="inp" id="g-r" inputmode="decimal" data-gv="r" value="${e.r??""}"></div></div></div>`
+     :`<div class="unit"><input class="inp" id="g-v" inputmode="decimal" data-gv="v" value="${e.v??""}" aria-label="${x.l}（cm）" placeholder="${x.req?"":"わからなければ空欄"}"></div>`}
+   <div class="field" style="margin-top:16px"><label for="g-date">測定日</label><input class="inp" id="g-date" type="date" data-gd="1" value="${date}"></div></div>`};
+  const foot=()=>`<button class="btn" data-g="prev" ${i===0?"disabled":""}>前へ</button>${i<BODY.length-1?`<button class="btn" data-g="next">次へ</button>`:""}<button class="btn primary" data-g="save">保存</button>`;
+  const w=openSheet({title:"採寸ガイド",body:body(),foot:foot()});const re=()=>{setSheet(w,{body:body(),foot:foot()});$("#g-v,#g-l",w)?.focus({preventScroll:true})};
+  w.addEventListener("input",e=>{const t=e.target;const x=BODY[i];if(t.dataset.gv){b[x.k]={...(b[x.k]||{}),[t.dataset.gv]:t.value===""?null:toNum(t.value)}}if(t.dataset.gd)date=t.value});
+  w.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.gv&&i<BODY.length-1){e.preventDefault();i++;re()}});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-g]");if(!t)return;const a=t.dataset.g;const x=BODY[i];
+    if(a==="lr"){const cur=b[x.k]||{};b[x.k]=cur.lr?{v:cur.l??cur.r??null}:{lr:true,l:cur.v??null,r:cur.v??null};re()}
+    else if(a==="prev"){i=Math.max(0,i-1);re()}else if(a==="next"){i=Math.min(BODY.length-1,i+1);re()}
+    else if(a==="save"){await saveBody(p,b,date);closeSheet();render();toast("寸法を保存しました")}})}
+async function saveBody(p,b,date){const clean={};for(const x of BODY){const e=b[x.k];if(!e)continue;if(e.lr){if(e.l!=null||e.r!=null)clean[x.k]={lr:true,l:e.l??null,r:e.r??null}}else if(e.v!=null)clean[x.k]={v:e.v}}
+  const changed=JSON.stringify(clean)!==JSON.stringify(p.body||{});p.body=clean;p.measuredAt=date||today();
+  if(changed){p.history=p.history||[];const last=p.history[p.history.length-1];if(last&&last.date===p.measuredAt)last.body=clean;else p.history.push({date:p.measuredAt,body:clean});if(p.history.length>40)p.history=p.history.slice(-40)}
+  await saveProfile(p)}
+function bodyEditor(){const p=prof();const b=JSON.parse(JSON.stringify(p.body||{}));let date=p.measuredAt||today();
+  const body=()=>`<p class="note" style="margin:0 0 12px">単位はcm。わからない項目は空欄のままで保存できます。測り方は各項目の「?」から確認できます。</p>
+   <div class="field"><label for="be-date">測定日</label><input class="inp" id="be-date" type="date" data-bd="1" value="${date}"></div>
+   ${BODY.map(x=>{const e=b[x.k]||{};return `<div class="field"><div class="row" style="justify-content:space-between"><label class="lbl" for="be-${x.k}">${x.l}${x.req?"":"（任意）"}</label><span class="row" style="gap:6px">${x.lr?`<button class="chip" style="padding:3px 10px;font-size:11.5px" data-be="lr" data-k="${x.k}" aria-pressed="${!!e.lr}">左右別</button>`:""}<button class="q" data-act="guideOnly" data-k="${x.k}" aria-label="${x.l}の測り方">?</button></span></div>
+     ${e.lr?`<div class="lr"><div class="unit"><input class="inp" id="be-${x.k}" inputmode="decimal" data-bk="${x.k}" data-s="l" placeholder="左" value="${e.l??""}"></div><div class="unit"><input class="inp" inputmode="decimal" data-bk="${x.k}" data-s="r" placeholder="右" value="${e.r??""}" aria-label="${x.l} 右"></div></div>`
+      :`<div class="unit"><input class="inp" id="be-${x.k}" inputmode="decimal" data-bk="${x.k}" data-s="v" value="${e.v??""}"></div>`}</div>`}).join("")}`;
+  const w=openSheet({title:"体の寸法",body:body(),foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-be="save">保存</button>`});
+  w.addEventListener("input",e=>{const t=e.target;if(t.dataset.bk)b[t.dataset.bk]={...(b[t.dataset.bk]||{}),[t.dataset.s]:t.value===""?null:toNum(t.value)};if(t.dataset.bd)date=t.value});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-be]");if(!t)return;
+    if(t.dataset.be==="lr"){const cur=b[t.dataset.k]||{};b[t.dataset.k]=cur.lr?{v:cur.l??cur.r??null}:{lr:true,l:cur.v??null,r:cur.v??null};setSheet(w,{body:body()})}
+    else if(t.dataset.be==="save"){await saveBody(p,b,date);closeSheet();render();toast("寸法を保存しました")}})}
+function guideOnly(k){openSheet({title:BODYK[k].l+"の測り方",body:`<div class="guide-fig">${bodySVG(k)}</div><p>${esc(BGUIDE[k])}</p><p class="note">共通：薄着・裸足で自然に立つ。お腹はへこませず、メジャーは締め付けない。服のゆとりは足さずに入力します。</p>`})}
+function garmentGuide(){const A="var(--accent)";const L=`stroke="${A}" stroke-width="2.2" fill="none" stroke-linecap="round"`;const T=(x,y,t)=>`<text x="${x}" y="${y}" font-size="9" fill="var(--ink)" font-family="Zen Kaku Gothic New,sans-serif">${t}</text>`;
+  const shirt=`<svg viewBox="0 0 220 200" role="img" aria-label="トップスの測り方"><path d="M78 20 40 36 14 78 36 90 54 66V184H166V66L184 90 206 78 180 36 142 20C136 32 124 38 110 38S84 32 78 20Z" fill="var(--photo)" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round"/>
+   <line x1="56" y1="40" x2="164" y2="40" ${L}/>${T(96,34,"肩幅")}<line x1="54" y1="80" x2="166" y2="80" ${L}/>${T(96,94,"身幅")}<line x1="110" y1="40" x2="110" y2="184" ${L} stroke-dasharray="4 4"/>${T(114,140,"着丈")}<line x1="164" y1="40" x2="196" y2="84" ${L}/>${T(184,58,"袖丈")}</svg>`;
+  const pants=`<svg viewBox="0 0 220 220" role="img" aria-label="パンツの測り方"><path d="M60 14H160L170 206H124L112 86H108L96 206H50Z" fill="var(--photo)" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round"/>
+   <line x1="60" y1="18" x2="160" y2="18" ${L}/>${T(96,30,"ウエスト")}<line x1="56" y1="64" x2="164" y2="64" ${L}/>${T(100,60,"ヒップ")}<line x1="110" y1="18" x2="110" y2="86" ${L} stroke-dasharray="4 4"/>${T(114,46,"股上")}
+   <line x1="112" y1="88" x2="124" y2="204" ${L}/>${T(126,150,"股下")}<line x1="56" y1="96" x2="108" y2="96" ${L}/>${T(60,110,"太もも幅")}<line x1="124" y1="200" x2="170" y2="200" ${L}/>${T(134,214,"裾幅")}</svg>`;
+  openSheet({title:"服の測り方",body:`<p class="note" style="margin:0 0 12px">体の測り方とは別です。服を平らな所に置き、しわを伸ばしてから測ります。</p>
+   <div class="panel"><h2>トップス・アウター</h2><div class="guide-fig" style="border:0;padding:0">${shirt}</div>
+    <dl class="kv"><dt>肩幅</dt><dd>左右の肩の縫い目どうしをまっすぐ</dd><dt>身幅</dt><dd>脇の下の縫い目どうし（平置きの幅）。サイズ表に「バスト」とあれば一周の値なので「一周」を選びます</dd><dt>着丈</dt><dd>後ろ襟の付け根から裾まで</dd><dt>袖丈</dt><dd>肩の縫い目から袖口まで</dd></dl></div>
+   <div class="panel"><h2>パンツ・スカート</h2><div class="guide-fig" style="border:0;padding:0">${pants}</div>
+    <dl class="kv"><dt>ウエスト</dt><dd>ウエストの端から端（平置き）。一周の値なら「一周」を選びます</dd><dt>ヒップ</dt><dd>いちばん幅の広い位置</dd><dt>股上</dt><dd>股の縫い目の交点からウエストの上端まで</dd><dt>股下</dt><dd>股の縫い目の交点から裾まで</dd><dt>太もも幅</dt><dd>股の付け根のすぐ下を水平に</dd><dt>裾幅</dt><dd>裾の端から端</dd></dl></div>
+   <div class="notice"><b>平置きと一周の違い</b>平置きの幅を2倍すると、おおよその一周の長さになります。アプリでは比較のときに自動で換算します。</div>`})}
+function photoGuide(){openSheet({title:"全身写真の撮り方",body:`<ul style="margin:0 0 14px;padding-left:18px;display:grid;gap:6px;font-size:14px">
+   <li>体のラインがわかる、シンプルな服で撮ります。</li><li>頭から足先まで入るように。カメラはおへそくらいの高さで水平に構えます。</li>
+   <li>2〜3mほど離れて、正面・真横・後ろの3枚。</li><li>明るい場所で、背景は無地の壁などシンプルに。</li></ul>
+   <div class="notice">写真はこの端末の中だけに保存されます。AI試着が使えるようになった後も、実行ボタンを押して送信内容を確認したときだけ外部へ送ります。</div>`})}
+
+/* ===== 設定 ===== */
+async function settingsSheet(){let est="";try{const e=await navigator.storage?.estimate?.();if(e?.usage!=null)est=`この端末で使用中：約${(e.usage/1048576).toFixed(1)}MB`}catch(e){}
+  const body=`<div class="panel"><h2>デザイン</h2>${stylePicker()}<p class="note" style="margin:10px 0 0">この端末のこのブラウザでの見た目だけが変わります。データは変わりません。</p></div>
+  <div class="panel"><h2>データの保存について</h2>
+   <ul class="note" style="margin:0 0 10px;padding-left:18px;display:grid;gap:4px"><li>写真・寸法・服の情報は、このブラウザの中だけに保存されています。運営者には届きません。</li>
+   <li>ほかの端末やブラウザとは自動で同期されません。</li><li>ブラウザのデータ削除・容量不足・アプリの削除などで消えることがあります。</li></ul>
+   ${est?`<p class="note num" style="margin:0 0 10px">${est}</p>`:""}
+   <button class="btn sm" data-act="persist">消えにくくする（ブラウザに保存の継続を依頼）</button></div>
+  <div class="panel"><h2>バックアップ</h2><p class="note" style="margin:0 0 12px">写真も含めたすべてのプロフィールを、1つのZIPファイルに書き出します。別の端末で読み込めば、同じデータを使えます。</p>
+   <div class="row"><button class="btn primary grow" data-act="exportBackup">バックアップを書き出す</button>
+   <label class="btn grow filebtn">バックアップを読み込む<input type="file" accept=".zip,application/zip" id="restore-file"></label></div></div>
+  <div class="panel"><h2>AI・外部への送信</h2><p style="margin:0 0 10px;font-size:14px">いまの状態：<b>外部への送信なし</b>（AI未接続）</p>
+   <div class="tbl-wrap"><table class="cmp"><tr><th></th><th>AIを使わない（いま）</th><th>AIを使う（予定）</th></tr>
+   <tr><th>送るもの</th><td>なし</td><td>実行したときだけ、選んだ写真・服の画像・必要な文字情報</td></tr>
+   <tr><th>できること</th><td>登録・検索・コーデ作成・寸法の比較・体型の特徴と一般的な提案</td><td>タグやサイズ表の読み取り（仮入力）、好みに合わせた提案、画像試着</td></tr>
+   <tr><th>費用</th><td>無料</td><td>AIの利用料（使う人の負担を予定）</td></tr></table></div></div>
+  <div class="panel"><h2>危険な操作</h2><button class="btn danger block" data-act="wipeAll">この端末のデータをすべて削除</button></div>
+  <div class="panel"><h2>このアプリについて</h2>${aboutHTML()}</div>`;
+  const w=openSheet({title:"設定",body});
+  $("#restore-file",w).addEventListener("change",e=>{const f=e.target.files?.[0];e.target.value="";if(f)restoreFlow(f)})}
+function aboutHTML(){return `<dl class="kv"><dt>作った人</dt><dd>${CONFIG.makerUrl?`<a class="link" href="${esc(CONFIG.makerUrl)}" target="_blank" rel="noopener noreferrer">${esc(CONFIG.makerName)}</a>`:esc(CONFIG.makerName)}</dd>
+   ${CONFIG.instagramUrl?`<dt>Instagram</dt><dd><a class="link" href="${esc(CONFIG.instagramUrl)}" target="_blank" rel="noopener noreferrer">フォローする</a></dd>`:""}
+   ${CONFIG.contactUrl?`<dt>ご相談</dt><dd><a class="link" href="${esc(CONFIG.contactUrl)}" target="_blank" rel="noopener noreferrer">こんなアプリが欲しい・制作相談はこちら</a></dd>`:""}
+   <dt>バージョン</dt><dd class="num">${esc(CONFIG.version)}</dd></dl>
+   <p class="note" style="margin:10px 0 0">無料で使えます。フォローや登録は必要ありません。</p>`}
+function profilesSheet(){const body=()=>`<div class="mlist">${S.profiles.map(p=>`<div class="mrow"><div class="nm">${esc(p.name)}${p.sample?"<small>架空のサンプル</small>":""}</div>
+   ${p.id===S.pid?`<span class="st ok">使用中</span>`:`<button class="btn sm" data-pf="use" data-id="${p.id}">切り替える</button>`}<button class="link" data-pf="rename" data-id="${p.id}">名前</button><button class="link" style="color:var(--danger)" data-pf="del" data-id="${p.id}">削除</button></div>`).join("")}</div>
+   <div class="field" style="margin-top:16px"><label for="np-name">新しいプロフィール</label><div class="row"><input class="inp grow" id="np-name" maxlength="20" placeholder="名前"><button class="btn primary" data-pf="add">作成</button></div></div>
+   <p class="note">プロフィールごとに、写真・寸法・服・コーデが分かれて保存されます。同じ端末を家族やパートナーと使うときに便利です（パスワードによる保護はありません）。</p>`;
+  const w=openSheet({title:"プロフィール",body:body()});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-pf]");if(!t)return;const a=t.dataset.pf;const p=S.profiles.find(x=>x.id===t.dataset.id);
+    if(a==="use"){closeSheet();await switchProfile(p.id);toast(`${p.name} に切り替えました`)}
+    else if(a==="add"){const n=$("#np-name",w).value.trim();if(!n){toast("名前を入力してください");return}const np=newProfile(n);await saveProfile(np);closeSheet();await switchProfile(np.id);S.tab="me";render();toast("プロフィールを作りました")}
+    else if(a==="rename"){const row=t.closest(".mrow");row.innerHTML=`<input class="inp grow" value="${esc(p.name)}" maxlength="20" data-rn="1" aria-label="新しい名前"><button class="btn sm primary" data-pf="rnok" data-id="${p.id}">保存</button>`;$("[data-rn]",row).focus()}
+    else if(a==="rnok"){const v=$("[data-rn]",t.closest(".mrow")).value.trim();if(v){p.name=v;await saveProfile(p)}setSheet(w,{body:body()});render()}
+    else if(a==="del"){const n=(await DB.byProfile("items",p.id)).length;if(!await confirmDialog({title:`「${p.name}」を削除しますか？`,body:`このプロフィールの写真・寸法・服${n}点・コーデがすべて削除されます。元に戻せません。`,ok:"削除する",danger:true}))return;
+      await DB.deleteProfile(p.id);S.profiles=S.profiles.filter(x=>x.id!==p.id);clearURLs();
+      if(S.pid===p.id){S.pid=S.profiles[0]?.id||null;if(S.pid)await DB.put("meta",{key:"activeProfile",value:S.pid});await loadProfileData()}
+      if(S.profiles.length)setSheet(w,{body:body()});else closeSheet();render();toast("削除しました")}})}
+function prefEditor(){const p=prof();const d={colors:[...(p.colors||[])],tastes:[...(p.tastes||[])],fitPref:p.fitPref||"regular",goals:[...(p.goals||[])]};
+  const tg=(arr,v)=>{const i=arr.indexOf(v);i>=0?arr.splice(i,1):arr.push(v)};
+  const body=()=>`<div class="field"><span class="lbl">好きな色（いくつでも）</span><div class="chips wrap" style="margin:0">${COLORS.filter(c=>c[0]!=="柄・その他").map(([n,h])=>`<button class="chip" data-pe="colors" data-v="${n}" aria-pressed="${d.colors.includes(n)}"><i class="sw" style="background:${h}"></i>${n}</button>`).join("")}</div></div>
+   <div class="field"><span class="lbl">好きなテイスト</span><div class="chips wrap" style="margin:0">${TASTES.map(t=>`<button class="chip" data-pe="tastes" data-v="${t}" aria-pressed="${d.tastes.includes(t)}">${t}</button>`).join("")}</div></div>
+   <div class="field"><span class="lbl">着心地の好み</span><div class="chips wrap" style="margin:0">${FITPREF.map(([k,l])=>`<button class="chip" data-pe="fitPref" data-v="${k}" aria-pressed="${d.fitPref===k}">${l}</button>`).join("")}</div></div>
+   <div class="field"><span class="lbl">目的</span><div class="chips wrap" style="margin:0">${GOALS.map(g=>`<button class="chip" data-pe="goals" data-v="${g}" aria-pressed="${d.goals.includes(g)}">${g}</button>`).join("")}</div></div>`;
+  const w=openSheet({title:"好み・目的",body:body(),foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn primary" data-pe="save">保存</button>`});
+  w.addEventListener("click",async e=>{const t=e.target.closest("[data-pe]");if(!t)return;const k=t.dataset.pe;
+    if(k==="save"){Object.assign(p,d);await saveProfile(p);closeSheet();render();toast("保存しました");return}
+    if(k==="fitPref")d.fitPref=t.dataset.v;else tg(d[k],t.dataset.v);setSheet(w,{body:body()})})}
+
+/* ===== バックアップ・復元・全削除 ===== */
+async function saveFile(filename,blob){let dl=null;
+  try{if(window.claude&&typeof window.claude.use==="function")dl=await window.claude.use("downloads")}catch(e){dl=null}
+  if(dl){try{await dl.save({filename,data:blob});return "saved"}catch(e){if(e?.code==="declined")return "declined";if(e?.code==="rate_limited"){toast("少し待ってからもう一度お試しください");return "busy"}}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000);return "fallback"}
+async function buildBackup(){const profiles=await DB.all("profiles"),items=await DB.all("items"),outfits=await DB.all("outfits"),blobs=await DB.all("blobs");
+  const zip=new JSZip();const bm=[];for(const b of blobs){const path=`images/${b.id}.${b.type==="image/png"?"png":"jpg"}`;zip.file(path,b.buf);bm.push({id:b.id,profileId:b.profileId,type:b.type,path,createdAt:b.createdAt})}
+  zip.file("data.json",JSON.stringify({app:"my-closet",format:1,exportedAt:new Date().toISOString(),activeProfile:S.pid,profiles,items,outfits,blobs:bm}));
+  zip.file("README.txt","Myクローゼットのバックアップです。\nアプリの「設定 → バックアップを読み込む」からこのZIPファイルを選ぶと復元できます。\nimages フォルダに写真、data.json に登録内容が入っています。\n個人の写真・寸法を含むため、取り扱いにご注意ください。\n");
+  return {blob:await zip.generateAsync({type:"blob"}),counts:{p:profiles.length,i:items.length,o:outfits.length,b:blobs.length}}}
+async function exportBackup(btn){if(typeof JSZip==="undefined"){toast("バックアップ機能を読み込めませんでした。通信状態を確認して開き直してください。");return}
+  btn&&(btn.disabled=true);try{const {blob,counts}=await buildBackup();const d=new Date();
+    const name=`my-closet-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.zip`;
+    const r=await saveFile(name,blob);if(r==="saved"||r==="fallback"){try{localStorage.setItem("mc-lastbackup",today())}catch(e){}toast(`書き出しました（プロフィール${counts.p}件・写真${counts.b}枚）`)}else if(r==="declined")toast("保存を取りやめました")}
+  catch(e){toast("書き出しに失敗しました")}finally{btn&&(btn.disabled=false)}}
+async function parseBackup(file){const zip=await JSZip.loadAsync(file);const dj=zip.file("data.json");if(!dj)throw new Error("format");
+  const data=JSON.parse(await dj.async("string"));if(data.app!=="my-closet"||!Array.isArray(data.profiles))throw new Error("format");
+  const blobs=[];let missing=0;for(const m of data.blobs||[]){const f=zip.file(m.path);if(!f){missing++;continue}blobs.push({id:m.id,profileId:m.profileId,type:m.type||"image/jpeg",buf:await f.async("arraybuffer"),createdAt:m.createdAt||Date.now()})}
+  data.items=data.items||[];data.outfits=data.outfits||[];return {data,blobs,missing}}
+async function restoreFlow(file){if(typeof JSZip==="undefined"){toast("バックアップ機能を読み込めませんでした");return}
+  let parsed;try{parsed=await parseBackup(file)}catch(e){await confirmDialog({title:"読み込めませんでした",body:"Myクローゼットのバックアップ（ZIPファイル）を選んでください。",ok:"OK",cancel:"閉じる"});return}
+  const {data,blobs,missing}=parsed;
+  const ok=await confirmDialog({title:"このバックアップで置き換えますか？",body:`バックアップの内容：プロフィール${data.profiles.length}件・服${data.items.length}点・コーデ${data.outfits.length}件・写真${blobs.length}枚${missing?`（写真${missing}枚が見つかりません）`:""}\n書き出し日時：${data.exportedAt?new Date(data.exportedAt).toLocaleString("ja-JP",{dateStyle:"medium",timeStyle:"short"}):"不明"}\n\nいまこの端末にあるデータはすべて消え、バックアップの内容に置き換わります。`,ok:"置き換える",danger:true});
+  if(!ok)return;try{await DB.restore(data,blobs)}catch(e){toast("復元に失敗しました。端末の空き容量を確認してください。");return}
+  clearURLs();while(sheets.length)closeSheet();S.profiles=(await DB.all("profiles")).sort((a,b)=>a.createdAt-b.createdAt);
+  S.pid=S.profiles.some(p=>p.id===data.activeProfile)?data.activeProfile:(S.profiles[0]?.id||null);await loadProfileData();render();toast("バックアップから復元しました")}
+function wipeFlow(){const w=openSheet({title:"すべて削除",body:`<div class="notice warn"><b>元に戻せません</b>この端末に保存されている、すべてのプロフィールの写真・寸法・服・コーデを削除します。必要なら先にバックアップを書き出してください。</div>
+   <div class="field"><label for="wipe-in">確認のため「削除する」と入力してください</label><input class="inp" id="wipe-in" autocomplete="off"></div>`,
+   foot:`<button class="btn" data-act="closeSheet">キャンセル</button><button class="btn danger" id="wipe-go" disabled>すべて削除</button>`});
+  const inp=$("#wipe-in",w),go=$("#wipe-go",w);inp.addEventListener("input",()=>{go.disabled=inp.value.trim()!=="削除する"});
+  go.addEventListener("click",async()=>{await DB.clearAll();clearURLs();try{localStorage.removeItem("mc-tab");localStorage.removeItem("mc-lastbackup")}catch(e){}
+    while(sheets.length)closeSheet();S.profiles=[];S.pid=null;S.items=[];S.outfits=[];S.tab="closet";render();toast("すべて削除しました")})}
+
+/* ===== 架空のサンプル ===== */
+async function sampleImage(kind,color,label){const c=document.createElement("canvas");c.width=600;c.height=750;const x=c.getContext("2d");
+  x.fillStyle="#ECEDEA";x.fillRect(0,0,600,750);x.fillStyle=color;x.strokeStyle="rgba(0,0,0,.18)";x.lineWidth=3;x.beginPath();
+  const P=pts=>{x.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)x.lineTo(pts[i],pts[i+1]);x.closePath()};
+  if(kind==="tops"||kind==="outer")P([220,110,140,150,70,300,130,330,170,250,170,640,430,640,430,250,470,330,530,300,460,150,380,110,350,150,300,165,250,150]);
+  else if(kind==="pants")P([190,100,410,100,440,660,340,660,300,280,260,660,160,660]);
+  else if(kind==="skirt")P([220,140,380,140,470,620,130,620]);
+  else if(kind==="shoes"){P([120,430,330,430,360,380,470,400,500,470,500,520,110,520]);}
+  else P([170,300,430,300,460,620,140,620]);
+  x.fill();x.stroke();if(kind==="bag"){x.beginPath();x.arc(300,300,90,Math.PI,0);x.lineWidth=14;x.strokeStyle=color;x.stroke()}
+  x.fillStyle="rgba(23,25,26,.55)";x.font="600 26px sans-serif";x.textAlign="center";x.fillText("架空のサンプル",300,705);
+  return await new Promise(r=>c.toBlob(r,"image/jpeg",.85))}
+async function createSample(){const p=newProfile("サンプル（架空）");p.sample=true;
+  p.body={height:{v:162},shoulder:{v:38},chest:{v:84},waist:{v:64},belly:{v:72},hip:{v:90},inseam:{v:72},thigh:{v:52},arm:{v:52}};p.measuredAt=today();p.history=[{date:today(),body:p.body}];
+  p.colors=["ネイビー","ホワイト"];p.tastes=["きれいめ","カジュアル"];p.fitPref="regular";p.goals=["脚を長く見せたい"];
+  await saveProfile(p);S.pid=p.id;
+  const mk=async(kind,cat,color,hex,name,extra)=>{const b=await sampleImage(cat,hex);const bid=await saveBlob(b,p.id);
+    const rec={id:"i_"+uid(),profileId:p.id,kind,category:cat,name,brand:"サンプル",color,size:"",price:null,wantLevel:null,wishSize:"",url:"",notes:"架空のサンプルです。自由に編集・削除できます。",stretch:"none",rows:[blankRow()],selRow:0,isReference:false,photoIds:[bid],createdAt:Date.now(),updatedAt:Date.now(),purchasedAt:null,priceAt:null,...extra};
+    await DB.put("items",rec);return rec};
+  const shirt=await mk("closet","tops","ホワイト","#F7F7F5","白シャツ",{size:"M",isReference:true,rows:[{label:"M",m:{shoulder:{v:40},bodyWidth:{v:52,mode:"flat"},length:{v:68},sleeve:{v:58}}}]});
+  await mk("closet","tops","ネイビー","#22304F","ネイビーのニット",{size:"M",stretch:"some",rows:[{label:"M",m:{shoulder:{v:44},bodyWidth:{v:56,mode:"flat"},length:{v:62},sleeve:{v:54}}}]});
+  const denim=await mk("closet","pants","デニム","#4B6584","ストレートデニム",{size:"27",rows:[{label:"27",m:{waistG:{v:34,mode:"flat"},hipG:{v:47,mode:"flat"},rise:{v:28},inseamG:{v:70},thighW:{v:29,mode:"flat"},hemW:{v:18,mode:"flat"}}}]});
+  await mk("closet","skirt","ベージュ","#D8C6A8","ベージュのフレアスカート",{size:"M",rows:[{label:"M",m:{waistG:{v:66,mode:"round"},hipG:{v:100,mode:"round"},skirtLen:{v:78}}}]});
+  const shoes=await mk("closet","shoes","ブラック","#1B1B1B","黒のローファー",{size:"23.5",rows:[{label:"",m:{footLen:{v:23.5},heel:{v:3}}}]});
+  await mk("wish","outer","ベージュ","#C8B48F","トレンチコート",{price:18900,priceAt:today(),wantLevel:4,wishSize:"M",selRow:1,notes:"架空のサンプルです。サイズ表の「M」を購入候補にしています。",rows:[{label:"S",m:{shoulder:{v:41},bodyWidth:{v:54,mode:"flat"},length:{v:100},sleeve:{v:57}}},{label:"M",m:{shoulder:{v:43},bodyWidth:{v:57,mode:"flat"},length:{v:104},sleeve:{v:59}}},{label:"L",m:{shoulder:{v:45},bodyWidth:{v:60,mode:"flat"},length:{v:108},sleeve:{v:61}}}]});
+  await DB.put("outfits",{id:"o_"+uid(),profileId:p.id,name:"週末のカフェ（サンプル）",purpose:"普段",slots:{tops:[shirt.id],bottoms:[denim.id],shoes:[shoes.id],bag:[],acc:[]},favorite:true,notes:"",createdAt:Date.now(),updatedAt:Date.now()});
+  await DB.put("meta",{key:"activeProfile",value:p.id});await loadProfileData();S.tab="closet";render();toast("架空のサンプルを作りました")}
+
+/* ===== 操作 ===== */
+const ACT={
+  tab:b=>{S.tab=b.dataset.tab;try{localStorage.setItem("mc-tab",S.tab)}catch(e){}while(sheets.length)closeSheet();render();scrollTo(0,0)},
+  closeSheet:()=>closeSheet(),
+  settings:()=>settingsSheet(), profiles:()=>profilesSheet(),
+  about:()=>openSheet({title:"このアプリについて",body:aboutHTML()}),
+  createFirst:async()=>{const n=$("#w-name").value.trim();if(!n){toast("名前を入力してください");$("#w-name").focus();return}const p=newProfile(n);await saveProfile(p);await switchProfile(p.id);S.tab="me";render()},
+  sample:()=>createSample(),
+  setStyle:b=>{applyStyle(b.dataset.v);render();$$(".sty").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===b.dataset.v))},
+  cat:b=>{S.cat=b.dataset.v;$("#closet-chips").innerHTML=catChips(S.items.filter(i=>i.kind==="closet"),S.cat,"cat");$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))},
+  wcat:b=>{S.wcat=b.dataset.v;render()}, wsort:b=>{S.wsort=b.dataset.v;render()}, ofilter:b=>{S.ofilter=b.dataset.v;render()},
+  newItem:b=>itemEditor(null,b.dataset.kind),
+  openItem:b=>openItem(b.dataset.id), openItem2:b=>openItem(b.dataset.id),
+  editItem:b=>itemEditor(itemById(b.dataset.id)),
+  deleteItem:async b=>{const it=itemById(b.dataset.id);if(!await confirmDialog({title:"この服を削除しますか？",body:"写真も削除され、コーデからも外れます。元に戻せません。",ok:"削除",danger:true}))return;
+    await deleteBlobs(it.photoIds||[]);await DB.del("items",it.id);S.items=S.items.filter(x=>x.id!==it.id);
+    const touched=[];S.outfits.forEach(o=>{let ch=false;SLOTS.forEach(s=>{const a=o.slots?.[s.k]||[];if(a.includes(it.id)){o.slots[s.k]=a.filter(x=>x!==it.id);ch=true}});if(ch)touched.push(o)});
+    if(touched.length)await DB.putMany("outfits",touched);if(S.tryItem===it.id)S.tryItem=null;closeSheet();render();toast("削除しました")},
+  toggleRef:async b=>{const it=itemById(b.dataset.id);const on=!it.isReference;const ch=[];
+    if(on)S.items.forEach(x=>{if(x.kind==="closet"&&x.category===it.category&&x.isReference&&x.id!==it.id){x.isReference=false;ch.push(x)}});it.isReference=on;ch.push(it);
+    await DB.putMany("items",ch);closeSheet();render();openItem(it.id);toast(on?"基準アイテムにしました":"基準アイテムから外しました")},
+  moveToCloset:async b=>{const it=itemById(b.dataset.id);const r=rowOf(it);
+    if(!await confirmDialog({title:"Myクローゼットへ移動しますか？",body:`購入済みとして移動します。サイズは「${r.label||it.wishSize||"未設定"}」の行の寸法を残します。`,ok:"移動する"}))return;
+    Object.assign(it,{kind:"closet",size:r.label||it.wishSize||"",rows:[r],selRow:0,purchasedAt:today(),updatedAt:Date.now(),wantLevel:null});
+    await DB.put("items",it);closeSheet();S.tab="closet";render();toast("Myクローゼットへ移動しました");openItem(it.id)},
+  tryThis:b=>{S.tryItem=b.dataset.id;S.tab="try";while(sheets.length)closeSheet();render();scrollTo(0,0)},
+  matchThis:b=>matchItem(b.dataset.id),
+  outfitWith:b=>{closeSheet();outfitEditor(null,[b.dataset.id])},
+  newOutfit:()=>outfitEditor(null), editOutfit:b=>outfitEditor(S.outfits.find(o=>o.id===b.dataset.id)),
+  tryPick:b=>{S.tryItem=S.tryItem===b.dataset.id?null:b.dataset.id;const sx=$(".strip")?.scrollLeft;render();if($(".strip"))$(".strip").scrollLeft=sx},
+  tryPhoto:b=>{S.tryPhoto=b.dataset.v;render()},
+  guide:b=>measureGuide(b.dataset.k), guideOnly:b=>guideOnly(b.dataset.k),
+  bodyEdit:()=>bodyEditor(), prefEdit:()=>prefEditor(), photoGuide:()=>photoGuide(), garmentGuide:()=>garmentGuide(),
+  rmBodyPhoto:async b=>{const p=prof();const k=b.dataset.v;if(!await confirmDialog({title:"この写真を外しますか？",body:"端末からも削除されます。",ok:"外す",danger:true}))return;await deleteBlobs([p.photos[k]]);p.photos[k]=null;await saveProfile(p);render()},
+  exportBackup:b=>exportBackup(b),
+  wipeAll:()=>wipeFlow(),
+  persist:async()=>{try{const r=await navigator.storage?.persist?.();toast(r?"このブラウザに保存の継続を依頼しました":"この環境では依頼できませんでした。バックアップをおすすめします")}catch(e){toast("この環境では依頼できませんでした。バックアップをおすすめします")}}
+};
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b,e)}});
+document.addEventListener("input",e=>{if(e.target.id==="closet-q"){S.q=e.target.value;$("#closet-grid").innerHTML=closetGrid();hydrate($("#closet-grid"))}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheets.length&&!$(".modal-wrap"))closeSheet();if(e.key==="Enter"&&e.target.id==="w-name")ACT.createFirst()});
+document.addEventListener("change",async e=>{const k=e.target.dataset?.bodyphoto;if(!k||!e.target.files?.[0])return;const [blob]=await filesToBlobs([e.target.files[0]]);e.target.value="";if(!blob)return;
+  const p=prof();const old=p.photos[k];p.photos[k]=await saveBlob(blob,p.id);await saveProfile(p);if(old)await deleteBlobs([old]);render();toast("写真を保存しました")});
+boot();
+</script>
+
+</body>
+</html>
