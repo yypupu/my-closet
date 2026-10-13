@@ -412,6 +412,9 @@ details.help ul{margin:8px 0 2px;padding-left:18px}
 .stage>img.bodyimg{width:100%;display:block;pointer-events:none;-webkit-user-drag:none}
 .stage .lay{position:absolute;transform-origin:center center;touch-action:none;cursor:grab;-webkit-user-drag:none;user-select:none}
 .stage .lay.sel{outline:2px dashed #4D7CFF;outline-offset:2px}
+.stage .lay{filter:drop-shadow(0 3px 4px rgba(0,0,0,.28))}
+.stage .realimg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:60;display:none}
+.stage.real .realimg{display:block}
 .stage .calline{position:absolute;left:0;right:0;border-top:3px dashed #FF3E7F;pointer-events:none}
 .stage .calline span{position:absolute;right:6px;top:-24px;background:#FF3E7F;color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px}
 .checker{background-color:#fff;background-image:conic-gradient(#e4e4e4 25%,#fff 0 50%,#e4e4e4 0 75%,#fff 0);background-size:16px 16px}
@@ -446,7 +449,7 @@ const CONFIG = {
   instagramUrl: "",   // 例: https://www.instagram.com/xxxx/
   contactUrl: "",     // 「こんなアプリが欲しい・制作相談はこちら」の行き先
   googleClientId: "605902820361-6a6tnohfop355db503aaa2m5frlavlun.apps.googleusercontent.com", // Googleドライブ自動バックアップ用（Google Cloudで発行したOAuthクライアントID。秘密情報ではありません）
-  version: "0.5.0（かんたん登録・すぐ着せる）"
+  version: "0.5.1（なじませ合成・見本の質感）"
 };
 
 /* ===== デザインパターン ===== */
@@ -614,7 +617,12 @@ async function boot(){
   if(S.bk.drive.enabled&&S.bk.changes>0)S.driveTap=true;
   try{await AI.load()}catch(e){}
   S.ready=true;render()}
-async function loadProfileData(){S.items=S.pid?await DB.byProfile("items",S.pid):[];S.outfits=S.pid?await DB.byProfile("outfits",S.pid):[]}
+async function loadProfileData(){S.items=S.pid?await DB.byProfile("items",S.pid):[];S.outfits=S.pid?await DB.byProfile("outfits",S.pid):[];migrateDemo()}
+/* 以前のイラスト調の見本を、質感つきの絵に描き直す */
+let migrating=false;async function migrateDemo(){if(migrating)return;const old=S.items.filter(i=>i.demoKey&&(i.demoV||1)<2);if(!old.length)return;migrating=true;
+  try{for(const it of old){const d=DEMO.find(x=>x.k===it.demoKey);if(!d)continue;const cv=drawDemo(d);const blob=await new Promise(r=>cv.toBlob(r,"image/png"));const bid=await saveBlob(blob,it.profileId);
+    const olds=[it.photoIds?.[0],it.cut?.blobId].filter((v,i,a)=>v&&a.indexOf(v)===i);it.photoIds=[bid,...(it.photoIds||[]).slice(1)];it.cut={blobId:bid,w:cv.width,h:cv.height,tol:0,removed:true,fe:1};it.demoV=2;
+    await DB.put("items",it);await deleteBlobs(olds)}render()}catch(e){console.error(e)}migrating=false}
 async function switchProfile(id){S.pid=id;await DB.put("meta",{key:"activeProfile",value:id});S.tryItem=null;S.q="";S.cat="all";await loadProfileData();render()}
 async function saveProfile(p){p.updatedAt=Date.now();await DB.put("profiles",p);const i=S.profiles.findIndex(x=>x.id===p.id);if(i>=0)S.profiles[i]=p;else S.profiles.push(p)}
 
@@ -1477,9 +1485,24 @@ const DEMO=[
  {k:"bag",n:"ビッグバッグ",cat:"bag",color:"ブラウン",fill:"#8B5A3C",ar:1.1,m:{bagW:46,bagH:36,bagD:16},st:{bagW:0,bagH:0,bagD:0}},
  {k:"stole",n:"レオパード柄のストール",cat:"acc",color:"柄・その他",fill:"#C99A5B",ar:0.26,m:{},st:{},cm:70}
 ];
+/* 平面の絵に、丸み・光・生地の目をのせて写真っぽくする */
+function fabricize(x,W,H,k){const im=x.getImageData(0,0,W,H);const p=im.data;featherAlpha(p,W,H,1);
+  const knit=k==="knit",denim=k==="wide"||k==="tight",wool=k==="coat"||k==="stole",leather=k==="derby"||k==="boots"||k==="bag",nylon=k==="puffer";
+  const sh=new Float32Array(W*H).fill(1);
+  for(let y=0;y<H;y++){let xx=0;
+    while(xx<W){while(xx<W&&p[(y*W+xx)*4+3]<12)xx++;const st=xx;while(xx<W&&p[(y*W+xx)*4+3]>=12)xx++;const len=xx-st;if(len<2)continue;
+      for(let i=st;i<xx;i++){const t=(i-st+.5)/len;let v=.8+.3*Math.pow(Math.sin(Math.PI*t),.55);if(leather)v+=.18*Math.pow(Math.max(0,1-Math.abs(t-.38)*4),2);if(nylon)v+=.06*Math.sin(t*Math.PI*2);sh[y*W+i]=v}}}
+  // 縦方向になめらかに（袖と胴の切れ目で段がつかないように）
+  const R=Math.round(H/40),out=new Float32Array(W*H);
+  for(let xx=0;xx<W;xx++){let sum=0,n=0;for(let y=-R;y<H+R;y++){const a=y+R,b=y-R-1;if(a<H&&p[(a*W+xx)*4+3]>=12){sum+=sh[a*W+xx];n++}if(b>=0&&p[(b*W+xx)*4+3]>=12){sum-=sh[b*W+xx];n--}if(y>=0&&y<H)out[y*W+xx]=n?sum/n:1}}
+  let sd=12345;const rn=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff};
+  for(let y=0;y<H;y++){const v=1.07-.14*(y/H);for(let i=0;i<W;i++){const j=(y*W+i)*4;if(p[j+3]<12)continue;
+    let n=(rn()-.5)*(wool?22:knit?14:10);if(knit)n+=Math.sin(i*.75)*9;if(denim)n+=(((i+y)%6)<3?-7:7);if(wool)n+=Math.sin(i*.31+y*.17)*4;
+    const m=out[y*W+i]*v;p[j]=Math.max(0,Math.min(255,p[j]*m+n));p[j+1]=Math.max(0,Math.min(255,p[j+1]*m+n));p[j+2]=Math.max(0,Math.min(255,p[j+2]*m+n))}}
+  x.putImageData(im,0,0)}
 function drawDemo(d){const H=760,W=Math.round(H*d.ar)+40;const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
-  const ink="#2A2A2A";x.lineJoin="round";x.lineCap="round";const S=(px,py)=>[20+px/100*(W-40),py/100*(H-20)+10];
-  const poly=(pts,fill)=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.closePath();x.fillStyle=fill;x.fill();x.lineWidth=4;x.strokeStyle=ink;x.stroke()};
+  const ink="rgba(0,0,0,.32)";x.lineJoin="round";x.lineCap="round";const S=(px,py)=>[20+px/100*(W-40),py/100*(H-20)+10];
+  const poly=(pts,fill)=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.closePath();x.fillStyle=fill;x.fill();x.lineWidth=2;x.strokeStyle=ink;x.stroke()};
   const line=(pts,w=3,col=ink)=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.lineWidth=w;x.strokeStyle=col;x.stroke()};
   const dot=(a,b,r,col)=>{const[q,w]=S(a,b);x.beginPath();x.arc(q,w,r,0,7);x.fillStyle=col;x.fill()};
   const clipPoly=pts=>{x.beginPath();pts.forEach(([a,b],i)=>{const[q,r]=S(a,b);i?x.lineTo(q,r):x.moveTo(q,r)});x.closePath();x.save();x.clip()};
@@ -1500,13 +1523,14 @@ function drawDemo(d){const H=760,W=Math.round(H*d.ar)+40;const c=document.create
    case"bag":{const[a,b]=S(30,24),[c2,d2]=S(70,24);x.beginPath();x.moveTo(a,b);x.bezierCurveTo(a,0,c2,0,c2,d2);x.lineWidth=14;x.strokeStyle=ink;x.stroke();x.lineWidth=8;x.strokeStyle=f;x.stroke();poly([[4,24],[96,24],[100,100],[0,100]],f);line([[4,34],[96,34]],3,"rgba(0,0,0,.35)");break}
    case"stole":{const P=[[6,0],[94,0],[94,92],[6,92]];clipPoly(P);x.fillStyle=f;x.fillRect(0,0,W,H);let seed=7;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280};for(let i=0;i<70;i++){const q=rnd()*W,r=rnd()*H,z=6+rnd()*10;x.beginPath();x.ellipse(q,r,z,z*.7,rnd()*3,0,7);x.fillStyle="#3A2416";x.fill();x.beginPath();x.ellipse(q,r,z*.5,z*.35,0,0,7);x.fillStyle="#9A6B35";x.fill()}x.restore();poly(P,"rgba(0,0,0,0)");for(let i=8;i<94;i+=6)line([[i,92],[i,100]],3,"#7A5A30");break}
   }
+  fabricize(x,W,H,d.k);
   // 透明部分を切り落とす
   const id=x.getImageData(0,0,W,H).data;let x0=W,y0=H,x1=0,y1=0;for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++)if(id[(yy*W+xx)*4+3]>10){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy}
   const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);return o}
 function demoRows(d){const sz=[["S",-1],["M",0],["L",1]];const keys=Object.keys(d.m);if(!keys.length)return [{label:"F",m:{}}];
   return sz.map(([l,k])=>({label:l,m:Object.fromEntries(keys.map(key=>[key,GF[key].t?{v:Math.round((d.m[key]+k*(d.st[key]||0))*10)/10,mode:d.round&&["waistG","hipG"].includes(key)?"round":"flat"}:{v:Math.round((d.m[key]+k*(d.st[key]||0))*10)/10}]))}))}
 function demoCatalog(after){const sel=new Set();let size="M";const prev={};
-  const body=()=>`<p class="note" style="margin:0 0 12px">2026年秋冬に流行っている形を、イラストにした<b>見本（架空の服）</b>です。寸法は一般的な目安なので、実際に買うときは商品のサイズ表で確かめてください。ほしい物に入れると、「手で重ねる」で自分の写真に着せられます。</p>
+  const body=()=>`<p class="note" style="margin:0 0 12px">2026年秋冬に流行っている形を、絵で再現した<b>見本（架空の服）</b>です。寸法は一般的な目安なので、実際に買うときは商品のサイズ表で確かめてください。ほしい物に入れると、「手で重ねる」で自分の写真に着せられます。</p>
    <div class="field"><span class="lbl">サイズ</span><div class="chips" style="margin:0">${["S","M","L"].map(z=>`<button class="chip" data-dz="${z}" aria-pressed="${size===z}">${z}</button>`).join("")}</div></div>
    <div class="pick">${DEMO.map(d=>`<button class="card" data-dk="${d.k}" aria-pressed="${sel.has(d.k)}"><div class="ph checker" style="display:grid;place-items:center;padding:8px"><img src="${prev[d.k]||""}" alt="" style="object-fit:contain;max-height:100%">${S.items.some(i=>i.demoKey===d.k)?'<span class="badge">追加済み</span>':""}<span class="tick">✓</span></div><div class="cmeta"><span style="white-space:normal">${esc(d.n)}</span></div></button>`).join("")}</div>`;
   const foot=()=>`<button class="btn" data-act="closeSheet">閉じる</button><button class="btn primary" data-dgo="1" ${sel.size?"":"disabled"}>ほしい物に追加（${sel.size}）</button>`;
@@ -1519,7 +1543,7 @@ function demoCatalog(after){const sel=new Set();let size="M";const prev={};
       const rows=demoRows(d);const si=Math.max(0,rows.findIndex(r=>r.label===size));
       const rec={id:"i_"+uid(),profileId:S.pid,kind:"wish",category:d.cat,name:d.n,brand:"見本",color:d.color,size:"",price:null,wantLevel:3,wishSize:rows[si].label,url:"",
         notes:"流行りの見本（架空の服）です。寸法は一般的な目安なので、実際に買うときは商品のサイズ表で確かめてください。",stretch:"none",rows,selRow:si,isReference:false,photoIds:[bid],
-        cut:{blobId:bid,w:cv.width,h:cv.height,tol:0,removed:true},demoKey:d.k,demoCm:d.cm||null,createdAt:Date.now(),updatedAt:Date.now(),purchasedAt:null,priceAt:null};
+        cut:{blobId:bid,w:cv.width,h:cv.height,tol:0,removed:true,fe:1},demoV:2,demoKey:d.k,demoCm:d.cm||null,createdAt:Date.now(),updatedAt:Date.now(),purchasedAt:null,priceAt:null};
       await DB.put("items",rec);S.items.push(rec)}
     closeSheet();render();toast(`見本の服を${sel.size}点、ほしい物に追加しました`);after&&after()})}
 /* ===== 手で重ねる着せ替え（AIなし・端末内のみ） ===== */
@@ -1540,12 +1564,39 @@ async function makeCutout(blob,tol){const im=await loadImg(blob);const sc=Math.m
   for(let i=0;i<W*H;i++){if(seen[i]){px[i*4+3]=0}else{const xx=i%W,yy=(i/W)|0;if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy;
     if((xx>0&&seen[i-1])||(xx<W-1&&seen[i+1])||(yy>0&&seen[i-W])||(yy<H-1&&seen[i+W]))px[i*4+3]=170}}
   const area=(x1-x0+1)*(y1-y0+1);const ok=x1>=0&&area>W*H*0.04&&qt>W*H*0.05;
+  if(ok)featherAlpha(px,W,H,2);
   if(!ok){x0=0;y0=0;x1=W-1;y1=H-1;x.drawImage(await loadImg(blob),0,0,W,H)}else x.putImageData(d,0,0);
   const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
   return {blob:await new Promise(r=>o.toBlob(r,"image/png")),w:o.width,h:o.height,removed:ok}}
-async function ensureCutout(it,force){if(it.cut&&!force)return it.cut;const src=await blobOf(it.photoIds?.[0]);if(!src)return null;
+function featherAlpha(px,W,H,n){const a=new Float32Array(W*H);for(let i=0;i<W*H;i++)a[i]=px[i*4+3];const t=new Float32Array(W*H);
+  for(let k=0;k<n;k++){for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;t[i]=(a[i]*2+(x>0?a[i-1]:a[i])+(x<W-1?a[i+1]:a[i]))/4}
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;a[i]=(t[i]*2+(y>0?t[i-W]:t[i])+(y<H-1?t[i+W]:t[i]))/4}}
+  for(let i=0;i<W*H;i++)px[i*4+3]=Math.min(px[i*4+3],a[i]*1.15)}
+/* なじませ：ぼかし（ctx.filterを使わない＝iPhoneの古いSafariでも動く） */
+function blurCanvas(src,f){const w=Math.max(1,Math.round(src.width/f)),h=Math.max(1,Math.round(src.height/f));const a=document.createElement("canvas");a.width=w;a.height=h;const ax=a.getContext("2d");ax.imageSmoothingQuality="high";ax.drawImage(src,0,0,w,h);
+  const b=document.createElement("canvas");b.width=Math.max(1,w>>1);b.height=Math.max(1,h>>1);b.getContext("2d").drawImage(a,0,0,b.width,b.height);ax.clearRect(0,0,w,h);ax.drawImage(b,0,0,w,h);
+  const o=document.createElement("canvas");o.width=src.width;o.height=src.height;const ox=o.getContext("2d");ox.imageSmoothingQuality="high";ox.drawImage(a,0,0,o.width,o.height);return o}
+/* 全身写真に服をなじませて合成（影・体のしわと明暗を服に移す） */
+function realComposite(bodyImg,layers,outW){const iw=bodyImg.naturalWidth,ih=bodyImg.naturalHeight;const W=Math.max(1,Math.round(Math.min(outW||iw,iw))),H=Math.max(1,Math.round(W*ih/iw));
+  const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d",{willReadFrequently:true});x.drawImage(bodyImg,0,0,W,H);
+  const body=blurCanvas(c,Math.max(3,W/110)).getContext("2d").getImageData(0,0,W,H).data;const lb=blurCanvas(c,Math.max(8,W/16)).getContext("2d").getImageData(0,0,W,H).data;
+  let mean=0;for(let i=0;i<W*H;i+=7)mean+=lb[i*4]*.3+lb[i*4+1]*.59+lb[i*4+2]*.11;mean/=Math.ceil(W*H/7)||1;
+  for(const q of layers){const g=document.createElement("canvas");g.width=W;g.height=H;const gx=g.getContext("2d",{willReadFrequently:true});
+    gx.save();gx.translate(q.x,q.y);gx.rotate(q.r*Math.PI/180);gx.scale(q.flip?-1:1,1);gx.drawImage(q.img,-q.w/2,-q.h/2,q.w,q.h);gx.restore();
+    // 影
+    const sh=document.createElement("canvas");sh.width=W;sh.height=H;const sx=sh.getContext("2d");sx.drawImage(g,0,0);sx.globalCompositeOperation="source-in";sx.fillStyle="#000";sx.fillRect(0,0,W,H);
+    x.save();x.globalAlpha=.32;x.drawImage(blurCanvas(sh,Math.max(4,W/90)),W*.004,H*.006);x.restore();
+    // 体のしわ・明暗を服へ
+    const gd=gx.getImageData(0,0,W,H);const d=gd.data;
+    for(let i=0;i<W*H;i++){const a=d[i*4+3];if(!a)continue;const j=i*4;
+      const l=body[j]*.3+body[j+1]*.59+body[j+2]*.11,m=lb[j]*.3+lb[j+1]*.59+lb[j+2]*.11+1;
+      let s=l/m;s=s<.8?.8:s>1.15?1.15:s;s=1+(s-1)*.45;let gl=m/(mean+1);gl=gl<.8?.8:gl>1.15?1.15:gl;gl=1+(gl-1)*.4;const k=s*gl;
+      d[j]=Math.min(255,d[j]*k);d[j+1]=Math.min(255,d[j+1]*k);d[j+2]=Math.min(255,d[j+2]*k)}
+    gx.putImageData(gd,0,0);x.drawImage(g,0,0)}
+  return c}
+async function ensureCutout(it,force){if(it.cut&&it.cut.fe&&!force)return it.cut;const src=await blobOf(it.photoIds?.[0]);if(!src)return null;
   const tol=it.cut?.tol||40;const r=await makeCutout(src,tol);if(it.cut?.blobId)await deleteBlobs([it.cut.blobId]);
-  const id=await saveBlob(r.blob,it.profileId);it.cut={blobId:id,w:r.w,h:r.h,tol,removed:r.removed};await DB.put("items",it);return it.cut}
+  const id=await saveBlob(r.blob,it.profileId);it.cut={blobId:id,w:r.w,h:r.h,tol,removed:r.removed,fe:1};await DB.put("items",it);return it.cut}
 function cutoutSheet(it,onDone){let tol=it.cut?.tol||40;let cur=null;
   const w=openSheet({title:"背景の消し具合",body:`<div class="checker" style="border-radius:var(--r);display:grid;place-items:center;min-height:260px;padding:10px"><img id="cut-prev" alt="切り抜き" style="max-height:320px;max-width:100%"></div>
    <div class="field" style="margin-top:14px"><label for="cut-tol">消す強さ <span id="cut-v" class="num">${tol}</span></label><input id="cut-tol" type="range" min="10" max="110" step="2" value="${tol}" style="width:100%"></div>
@@ -1554,7 +1605,7 @@ function cutoutSheet(it,onDone){let tol=it.cut?.tol||40;let cur=null;
   const prev=$("#cut-prev",w);let t;const run=async()=>{const src=await blobOf(it.photoIds?.[0]);cur=await makeCutout(src,tol);prev.src=URL.createObjectURL(cur.blob)};run();
   $("#cut-tol",w).addEventListener("input",e=>{tol=+e.target.value;$("#cut-v",w).textContent=tol;clearTimeout(t);t=setTimeout(run,250)});
   $("#cut-ok",w).addEventListener("click",async()=>{if(!cur)return;if(it.cut?.blobId)await deleteBlobs([it.cut.blobId]);const id=await saveBlob(cur.blob,it.profileId);
-    it.cut={blobId:id,w:cur.w,h:cur.h,tol,removed:cur.removed};await DB.put("items",it);closeSheet();onDone&&onDone()})}
+    it.cut={blobId:id,w:cur.w,h:cur.h,tol,removed:cur.removed,fe:1};await DB.put("items",it);closeSheet();onDone&&onDone()})}
 function garmentCm(it){const r=rowOf(it);const v=k=>toNum(r?.m?.[k]?.v);if(it.demoCm&&["shoes","acc"].includes(it.category))return it.demoCm;
   switch(it.category){case"tops":case"outer":case"onepiece":return v("length");case"pants":return (v("rise")&&v("inseamG"))?v("rise")+v("inseamG"):null;case"skirt":return v("skirtLen");case"bag":return v("bagH");default:return null}}
 function calSheet(p,key,onDone){const step={i:0,top:null,bottom:null,cx:[]};const hasH=!!bodyVal(p.body,"height");
@@ -1590,11 +1641,12 @@ async function manualTry(pre=[]){const p=prof();const key=S.tryPhoto;const bid=p
   const heightCm=bodyVal(p.body,"height")?.avg||null;
   const items=S.items.filter(i=>i.photoIds?.length).sort((a,b)=>(a.kind===b.kind?0:a.kind==="closet"?-1:1));
   const L=[];let sel=-1;
-  const w=openSheet({title:"自分に着せる",cls:"full",body:`<div class="stage" id="mt-stage"><img class="bodyimg" id="mt-body" data-blob="${bid}" alt="全身写真"></div>
+  const w=openSheet({title:"自分に着せる",cls:"full",body:`<div class="stage" id="mt-stage"><img class="bodyimg" id="mt-body" data-blob="${bid}" alt="全身写真"><img class="realimg" id="mt-real" alt=""></div>
    <p class="readout" id="mt-read">${heightCm?"下の服をタップすると、自動で大きさを合わせて重ねます":"身長が未入力のため、大きさは手で合わせてください（Myサイズで身長を入れると自動になります）"}</p>
    <div class="tools">
     <button class="btn" data-mt="front">前へ</button><button class="btn" data-mt="back">後ろへ</button><button class="btn" data-mt="flip">左右反転</button><button class="btn" data-mt="remove">外す</button>
-    <button class="btn" data-mt="smaller">小さく</button><button class="btn" data-mt="bigger">大きく</button><button class="btn" data-mt="rot">少し回す</button><button class="btn" data-mt="fit">自動に戻す</button></div>
+    <button class="btn" data-mt="smaller">小さく</button><button class="btn" data-mt="bigger">大きく</button><button class="btn" data-mt="rot">少し回す</button><button class="btn" data-mt="fit">自動に戻す</button>
+    <button class="btn primary" data-mt="real" aria-pressed="true" style="grid-column:1/-1">なじませる：ON（影・しわ・明るさを合わせる）</button></div>
    <p class="note" style="margin:0 0 8px"><b>下の服をタップ → 着せる</b>。指でドラッグで移動、2本指で大きさ・向き。<br><button class="link" data-mt="cut">背景の消し具合</button>　<button class="link" data-mt="recal">縮尺を合わせ直す</button></p>
    <div class="strip" style="margin-bottom:0">${items.map(i=>`<button class="card" style="flex:0 0 76px" data-add="${i.id}"><div class="ph" style="aspect-ratio:4/5">${`<img data-blob="${i.photoIds[0]}" alt="">`}${i.kind==="wish"?'<span class="badge">ほしい</span>':""}</div><div class="cmeta"><span>${esc(i.name||CAT[i.category].l)}</span></div></button>`).join("")||`<p class="note">写真のある服を登録すると、ここに出ます。</p>`}</div>
    <button class="btn sm" style="margin-top:10px" data-mt="demo">流行りの見本の服を追加</button>
@@ -1605,8 +1657,15 @@ async function manualTry(pre=[]){const p=prof();const key=S.tryPhoto;const bid=p
   stage.style.maxWidth=`min(440px, calc(56vh * ${bodyImg.naturalWidth/bodyImg.naturalHeight}))`;
   const SW=()=>stage.clientWidth,SH=()=>stage.clientHeight;
   const pxPerCm=()=>heightCm?((cal.bottom-cal.top)*SH())/heightCm:null;
+  let g=null;
   const draw=()=>{L.forEach((l,i)=>{let el=l.el;if(!el){el=document.createElement("img");el.className="lay";el.src=l.url;el.alt="";el.draggable=false;el.dataset.i=i;stage.appendChild(el);l.el=el}
-      el.style.width=(l.w*l.s)+"px";el.style.left=(l.x-l.w*l.s/2)+"px";el.style.top=(l.y-l.h*l.s/2)+"px";el.style.transform=`rotate(${l.r}deg) scaleX(${l.flip?-1:1})`;el.style.zIndex=i+1;el.classList.toggle("sel",i===sel)});readout()};
+      el.style.width=(l.w*l.s)+"px";el.style.left=(l.x-l.w*l.s/2)+"px";el.style.top=(l.y-l.h*l.s/2)+"px";el.style.transform=`rotate(${l.r}deg) scaleX(${l.flip?-1:1})`;el.style.zIndex=i+1;el.classList.toggle("sel",i===sel)});readout();if(!g)scheduleReal();else stage.classList.remove("real")};
+  let realOn=true,realT=0,realSeq=0,realURL="";const realImg=$("#mt-real",w);
+  const layersAt=k=>L.map(q=>({img:q.el,x:q.x*k,y:q.y*k,w:q.w*q.s*k,h:q.h*q.s*k,r:q.r,flip:q.flip}));
+  const scheduleReal=()=>{clearTimeout(realT);if(!realOn||!L.length){stage.classList.remove("real");return}
+    realT=setTimeout(async()=>{const my=++realSeq;try{await Promise.all(L.map(q=>q.el?.decode?q.el.decode().catch(()=>{}):0));if(my!==realSeq||g)return;
+      const outW=Math.min(bodyImg.naturalWidth,Math.round(SW()*Math.min(2,devicePixelRatio||1)));const c=realComposite(bodyImg,layersAt(outW/SW()),outW);
+      const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));if(my!==realSeq||g||!b)return;if(realURL)URL.revokeObjectURL(realURL);realURL=URL.createObjectURL(b);realImg.src=realURL;stage.classList.add("real")}catch(err){console.error(err);stage.classList.remove("real")}},220)};
   const readout=()=>{const l=L[sel];const el=$("#mt-read",w);if(!l){return}const it=itemById(l.itemId);const ppc=pxPerCm();
     if(!ppc){el.textContent=`${it.name||CAT[it.category].l}：身長を入れると丈の位置が分かります`;return}
     const bottom=l.y+l.h*l.s/2,top=l.y-l.h*l.s/2;const floor=(cal.bottom*SH()-bottom)/ppc;const len=(l.h*l.s)/ppc;
@@ -1622,21 +1681,25 @@ async function manualTry(pre=[]){const p=prof();const key=S.tryPhoto;const bid=p
     const order={shoes:0,pants:1,skirt:1,tops:2,onepiece:2,outer:3,bag:4,acc:5};let pos=L.length;while(pos>0&&(order[itemById(L[pos-1].itemId).category]??2)>(order[it.category]??2))pos--;
     L.forEach(x=>{if(x.el){x.el.remove();x.el=null}});L.splice(pos,0,l);sel=pos;draw();$(".sheet-b",w).scrollTo({top:0,behavior:"smooth"});if(!cut.removed)toast("背景をうまく消せませんでした。「背景の消し具合」で調整できます")};
   // ジェスチャー
-  const pts=new Map();let g=null;
-  stage.addEventListener("pointerdown",e=>{const t=e.target.closest(".lay");if(pts.size===0){if(!t){sel=-1;draw();return}sel=+t.dataset.i;draw()}if(sel<0)return;stage.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});start()});
+  const pts=new Map();
+  stage.addEventListener("pointerdown",e=>{stage.classList.remove("real");realSeq++;const t=e.target.closest(".lay");if(pts.size===0){if(!t){sel=-1;draw();return}sel=+t.dataset.i;draw()}if(sel<0)return;stage.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});start()});
   const start=()=>{const l=L[sel];if(!l)return;const a=[...pts.values()];g={l0:{...l,el:undefined},a0:a.map(p=>({...p}))};if(a.length===2){g.d0=Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y);g.ang0=Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x)}};
   stage.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId)||!g)return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});const l=L[sel];const a=[...pts.values()];
     if(a.length===1){l.x=g.l0.x+(a[0].x-g.a0[0].x);l.y=g.l0.y+(a[0].y-g.a0[0].y)}
     else if(a.length>=2&&g.d0){const d=Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y);const ang=Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x);l.s=Math.max(.02,g.l0.s*d/g.d0);l.r=g.l0.r+(ang-g.ang0)*180/Math.PI;
       l.x=g.l0.x+((a[0].x+a[1].x)/2-(g.a0[0].x+g.a0[1].x)/2);l.y=g.l0.y+((a[0].y+a[1].y)/2-(g.a0[0].y+g.a0[1].y)/2)}
     l.auto=false;draw()});
-  const end=e=>{pts.delete(e.pointerId);if(pts.size)start();else g=null};stage.addEventListener("pointerup",end);stage.addEventListener("pointercancel",end);
+  const end=e=>{pts.delete(e.pointerId);if(pts.size)start();else{g=null;scheduleReal()}};stage.addEventListener("pointerup",end);stage.addEventListener("pointercancel",end);
   stage.addEventListener("wheel",e=>{const l=L[sel];if(!l)return;e.preventDefault();l.s*=e.deltaY<0?1.05:0.95;l.auto=false;draw()},{passive:false});
   w.addEventListener("click",async e=>{const a=e.target.closest("[data-add]");if(a){await add(a.dataset.add);return}
     const b=e.target.closest("[data-mt]");if(!b)return;const m=b.dataset.mt;const l=L[sel];
     if(m==="save"||m==="outfit"){if(!L.length){toast("服を1つ以上重ねてください");return}}
-    if(m==="save"){const k=bodyImg.naturalWidth/SW();const c=document.createElement("canvas");c.width=bodyImg.naturalWidth;c.height=bodyImg.naturalHeight;const x=c.getContext("2d");x.drawImage(bodyImg,0,0);
-      for(const q of L){x.save();x.translate(q.x*k,q.y*k);x.rotate(q.r*Math.PI/180);x.scale(q.flip?-1:1,1);x.drawImage(q.el,-q.w*q.s*k/2,-q.h*q.s*k/2,q.w*q.s*k,q.h*q.s*k);x.restore()}
+    if(m==="real"){realOn=!realOn;b.setAttribute("aria-pressed",realOn);b.classList.toggle("primary",realOn);b.textContent=realOn?"なじませる：ON（影・しわ・明るさを合わせる）":"なじませる：OFF（写真をそのまま重ねる）";scheduleReal();return}
+    if(m==="save"){b.disabled=true;const k=bodyImg.naturalWidth/SW();let c;
+      if(realOn){await Promise.all(L.map(q=>q.el?.decode?q.el.decode().catch(()=>{}):0));c=realComposite(bodyImg,layersAt(k),bodyImg.naturalWidth)}
+      else{c=document.createElement("canvas");c.width=bodyImg.naturalWidth;c.height=bodyImg.naturalHeight;const x=c.getContext("2d");x.drawImage(bodyImg,0,0);
+      for(const q of L){x.save();x.translate(q.x*k,q.y*k);x.rotate(q.r*Math.PI/180);x.scale(q.flip?-1:1,1);x.drawImage(q.el,-q.w*q.s*k/2,-q.h*q.s*k/2,q.w*q.s*k,q.h*q.s*k);x.restore()}}
+      b.disabled=false;
       const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));const id=await saveBlob(blob,p.id);p.tryons=p.tryons||[];p.tryons.push({id:"t_"+uid(),kind:"manual",itemIds:L.map(q=>q.itemId),blobId:id,photo:key,createdAt:Date.now()});await saveProfile(p);render();toast("画像を保存しました（着せ替え画面の下にあります）");return}
     if(m==="outfit"){const ids=L.map(q=>q.itemId);while(sheets.length)closeSheet();outfitEditor(null,ids);return}
     const keep=L.map(q=>q.itemId);
